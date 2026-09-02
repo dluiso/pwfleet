@@ -1,4 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { db, pool } from "./client";
 import {
   inspectionItemRules,
@@ -401,6 +403,35 @@ async function ensureTemplate(input: {
   });
 }
 
+export async function ensureInitialFormCatalog() {
+  const dumpTruckClass = await ensureVehicleClass(
+    "DT",
+    "Dump Truck",
+    "Dump trucks and related heavy commercial vehicles.",
+  );
+  const pickupClass = await ensureVehicleClass(
+    "PK",
+    "Pickup Truck",
+    "Standard pickup trucks used by Public Works.",
+  );
+
+  const dumpTemplate = await ensureTemplate({
+    code: "DUMP_TRUCK_PRETRIP",
+    name: "Dump Truck Pre-Trip Inspection",
+    description: "Daily pre-trip inspection based on the supplied ORS-21 source form.",
+    sections: dumpTruckSections,
+  });
+  const standardTemplate = await ensureTemplate({
+    code: "STANDARD_TRUCK_INSPECTION",
+    name: "Standard Truck Inspection",
+    description:
+      "Mechanical inspection and vehicle condition handover based on the supplied two-page source document.",
+    sections: standardTruckSections,
+  });
+
+  return { dumpTruckClass, pickupClass, dumpTemplate, standardTemplate };
+}
+
 async function ensureQr(vehicleId: string, issuedByUserId: string) {
   const existing = await db
     .select()
@@ -451,16 +482,8 @@ async function seed() {
   await ensureUser("supervisor@local.invalid", "Morgan Supervisor", "supervisor");
   await ensureUser("maintenance@local.invalid", "Taylor Maintenance", "maintenance_technician");
 
-  const dumpTruckClass = await ensureVehicleClass(
-    "DT",
-    "Dump Truck",
-    "Dump trucks and related heavy commercial vehicles.",
-  );
-  const pickupClass = await ensureVehicleClass(
-    "PK",
-    "Pickup Truck",
-    "Standard pickup trucks used by Public Works.",
-  );
+  const { dumpTruckClass, pickupClass, dumpTemplate, standardTemplate } =
+    await ensureInitialFormCatalog();
 
   const dump03 = await ensureVehicle({
     unitNumber: "03",
@@ -487,20 +510,6 @@ async function seed() {
     model: "114SD",
   });
 
-  const dumpTemplate = await ensureTemplate({
-    code: "DUMP_TRUCK_PRETRIP",
-    name: "Dump Truck Pre-Trip Inspection",
-    description: "Daily pre-trip inspection based on the supplied ORS-21 source form.",
-    sections: dumpTruckSections,
-  });
-  const standardTemplate = await ensureTemplate({
-    code: "STANDARD_TRUCK_INSPECTION",
-    name: "Standard Truck Inspection",
-    description:
-      "Mechanical inspection and vehicle condition handover based on the supplied two-page source document.",
-    sections: standardTruckSections,
-  });
-
   for (const vehicle of [dump03, pickup20, dump44]) {
     await ensureQr(vehicle.id, admin.id);
   }
@@ -510,15 +519,20 @@ async function seed() {
   await ensureAssignment(pickup20.id, standardTemplate.id);
 }
 
-seed()
-  .then(async () => {
-    process.stdout.write("Development data is ready.\n");
-    await pool.end();
-  })
-  .catch(async (error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown seed error";
-    process.stderr.write(`${message}\n`);
-    await pool.end();
-    process.exitCode = 1;
-  });
+const entryPoint = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : undefined;
 
+if (import.meta.url === entryPoint) {
+  seed()
+    .then(async () => {
+      process.stdout.write("Development data is ready.\n");
+      await pool.end();
+    })
+    .catch(async (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown seed error";
+      process.stderr.write(`${message}\n`);
+      await pool.end();
+      process.exitCode = 1;
+    });
+}

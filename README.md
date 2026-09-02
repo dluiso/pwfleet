@@ -111,6 +111,8 @@ Deploy the accepted checkout on Ubuntu with:
 sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 ```
 
+The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create sample vehicles, drivers, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist.
+
 Do not deploy until every environment-specific gate in the release checklist has observed evidence and explicit deployment approval has been given.
 
 ## Data and safety model

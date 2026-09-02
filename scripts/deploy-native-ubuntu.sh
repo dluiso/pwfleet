@@ -33,6 +33,7 @@ set +a
 
 pnpm production:config-check
 pnpm db:migrate
+pnpm db:bootstrap-catalog
 pnpm db:bootstrap-admin
 runuser -u pwfleet --preserve-environment -- pnpm production:preflight
 
