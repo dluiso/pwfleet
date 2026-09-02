@@ -38,7 +38,7 @@ The repository is a locally verified production release candidate. It includes:
 - OIDC Authorization Code + PKCE authentication, verified first-binding email, encrypted short-lived tokens backed by revocable server sessions, secure cookies, local authorization, immutable provider identity binding, logout, and login auditing;
 - PostgreSQL-backed request throttling, per-actor upload quotas, bounded image/PDF processing, nonce-based CSP, security headers, fail-closed ClamAV upload scanning in production, storage capacity thresholds, and automated retention;
 - English responsive UI for phone, tablet, and desktop;
-- Linux app/worker containers, a production Compose topology, nginx and systemd templates, production preflight, backup and isolated restore-drill tooling.
+- native Ubuntu services under a dedicated `pwfleet` account, systemd web/worker units, PostgreSQL TLS, ClamAV, production preflight, backup tooling, and an optional container topology for other environments.
 
 No real production deployment has been performed. Production credentials, the approved identity provider and SMTP relay, a TLS-enabled PostgreSQL target, DNS/TLS, an observed backup restoration, and City of Harvey user acceptance remain external release gates. See [Release Status](docs/RELEASE_STATUS.md), [Production Runbook](docs/PRODUCTION_RUNBOOK.md), and [Release Checklist](docs/RELEASE_CHECKLIST.md).
 
@@ -94,21 +94,21 @@ Values prefixed with `NEXT_PUBLIC_` are intentionally avoided for secrets becaus
 
 ## Linux deployment direction
 
-The intended production topology for Debian or Ubuntu is:
+The selected production topology for the City of Harvey Ubuntu host is:
 
 ```text
-Internet -> TLS reverse proxy -> Next.js container -> TLS PostgreSQL
-                                  |-> persistent evidence storage
-                                  |-> ClamAV
-Timer -> one-shot worker ----------|-> approved SMTP relay
+Internet -> Cloudflare Tunnel -> Next.js on 127.0.0.1:3000 -> local TLS PostgreSQL
+                             |-> persistent evidence storage
+                             |-> local ClamAV
+systemd timer -> one-shot worker ---------------------------> approved SMTP relay
 ```
 
-The checked-in topology binds the app only to loopback, drops Linux capabilities, uses a read-only container filesystem, runs as an unprivileged user, and exposes `/api/live` and `/api/ready`. The single-host production topology includes PostgreSQL 17 on an internal-only Docker network with a dedicated persistent volume and hostname-validated TLS. Its backup, capacity, and restoration policy still requires an accountable operator.
+The native service binds only to loopback, runs as the unprivileged `pwfleet` account, and uses systemd filesystem, device, kernel, and privilege restrictions. PostgreSQL accepts only local connections and uses hostname-validated TLS. Its backup, capacity, and restoration policy still requires an accountable operator.
 
-Build locally with:
+Deploy the accepted checkout on Ubuntu with:
 
 ```bash
-docker build -t harvey-pw-fleet:local .
+sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 ```
 
 Do not deploy until every environment-specific gate in the release checklist has observed evidence and explicit deployment approval has been given.

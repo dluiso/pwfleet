@@ -1,0 +1,36 @@
+[Unit]
+Description=City of Harvey PW Fleet web application
+Wants=network-online.target
+After=network-online.target postgresql.service clamav-daemon.service cloudflared.service
+Requires=postgresql.service clamav-daemon.service
+
+[Service]
+Type=simple
+User=pwfleet
+Group=pwfleet
+WorkingDirectory=/opt/pwfleet
+EnvironmentFile=/etc/pwfleet/app.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/local/bin/node /opt/pwfleet/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/pwfleet
+
+[Install]
+WantedBy=multi-user.target

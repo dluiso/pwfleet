@@ -12,7 +12,7 @@ The repository is complete as a local Linux production release candidate. Curren
 - all 18 checksum-locked migrations are applied in the local upgrade database;
 - critical safety-case, report-delivery, vehicle-dossier, notification, and retention QA cycles pass with cleanup;
 - all 15 findings from standard security scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused remediation verification;
-- app and worker images build from the current checkout;
+- app and worker images build from the current checkout, and native Ubuntu service definitions are provided;
 - production Compose resolves with a read-only database CA mount and `verify-full` for PostgreSQL tools;
 - the app container runs as `nextjs`; with deliberately invalid production configuration, liveness remains `200`, readiness is `503`, and protected application rendering fails closed;
 - production configuration validation runs before migrations, and the full preflight runs before the application is made ready;
