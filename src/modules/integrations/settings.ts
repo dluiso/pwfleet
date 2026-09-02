@@ -2,8 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { authSessions, auditEvents, integrationSettings, users } from "@/db/schema";
-import { administrativeErrorResponse } from "@/lib/admin-api";
-import { requirePermission } from "@/lib/auth";
+import { AuthenticationRequiredError, AuthorizationError, requirePermission } from "@/lib/auth";
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 
 export type OidcRuntimeConfiguration = {
@@ -46,7 +45,9 @@ export class IntegrationSettingsError extends Error {
 export function integrationSettingsErrorResponse(error: unknown): Response {
   if (error instanceof IntegrationSettingsError) return Response.json({ error: error.message, details: error.details }, { status: error.status });
   if (error instanceof z.ZodError) return Response.json({ error: "Review the integration fields and try again.", details: error.flatten() }, { status: 400 });
-  return administrativeErrorResponse(error);
+  if (error instanceof AuthenticationRequiredError) return Response.json({ error: "Authentication is required." }, { status: 401 });
+  if (error instanceof AuthorizationError) return Response.json({ error: "You are not authorized to perform this operation." }, { status: 403 });
+  return Response.json({ error: "The integration settings could not be updated." }, { status: 500 });
 }
 
 const optionalText = z.preprocess((value) => value === "" ? undefined : value, z.string().trim().min(1).optional());
