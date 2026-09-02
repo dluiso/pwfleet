@@ -80,15 +80,15 @@ All QA mutation scripts refuse to run in production and remove their exact tempo
 
 All environment variables are validated at runtime. Do not commit `.env.local`, production environment files, certificates, credentials, or tokens.
 
-Production validation currently requires:
+Production validation requires:
 
 - `APP_BASE_URL` using HTTPS;
 - `DATABASE_SSL_MODE=require` and an approved CA bundle mounted read-only into the containers;
-- `AUTH_MODE=oidc` with issuer, client ID, client secret, and an independent high-entropy `AUTH_SECRET`;
+- `AUTH_MODE=local` with an independent high-entropy `AUTH_SECRET`, or `AUTH_MODE=oidc` with issuer, client ID, client secret, and `AUTH_SECRET`;
 - no `DEV_ACTOR_EMAIL`;
-- trusted reverse-proxy client headers;
+- trusted reverse-proxy client headers, with `TRUSTED_CLIENT_IP_HEADER` set to the single header overwritten by that proxy;
 - persistent file storage and `FILE_SCANNING_MODE=clamav` with a reachable scanner;
-- SMTP configuration with `EMAIL_MODE=smtp` and explicit unauthenticated relay, password, or OAuth2 client-credentials authentication. Native Microsoft 365 deployments use OAuth2.
+- either non-delivery `EMAIL_MODE=capture`, or SMTP configuration with explicit unauthenticated relay, password, or OAuth2 client-credentials authentication. Native Microsoft 365 deployments use OAuth2.
 
 Values prefixed with `NEXT_PUBLIC_` are intentionally avoided for secrets because those values are embedded in browser JavaScript at build time.
 
@@ -112,6 +112,8 @@ sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 ```
 
 The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create sample vehicles, drivers, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist.
+
+Production supports two authentication modes. `local` provides a temporary, database-backed sign-in with scrypt password hashing, encrypted cookies, server-side session revocation, and database rate limits. The initial password is read only from standard input by `pnpm db:bootstrap-local-password`; it must never be placed in an environment file or command argument. `oidc` replaces the login entry point with Microsoft Entra while preserving users, roles, fleet records, and audit history. `EMAIL_MODE=capture` keeps notification work inside the application until SMTP is approved; it does not deliver messages externally.
 
 Do not deploy until every environment-specific gate in the release checklist has observed evidence and explicit deployment approval has been given.
 

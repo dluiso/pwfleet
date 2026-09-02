@@ -195,6 +195,8 @@ export const users = pgTable(
     oidcIssuer: varchar("oidc_issuer", { length: 500 }),
     oidcSubject: varchar("oidc_subject", { length: 500 }),
     identityBoundAt: timestamp("identity_bound_at", { withTimezone: true }),
+    localPasswordHash: varchar("local_password_hash", { length: 512 }),
+    localPasswordChangedAt: timestamp("local_password_changed_at", { withTimezone: true }),
     recordVersion: integer("record_version").notNull().default(1),
     ...timestamps,
   },

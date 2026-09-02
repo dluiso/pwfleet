@@ -43,11 +43,17 @@ describe("encrypted authentication sessions", () => {
 
   it("round-trips an encrypted session and rejects tampering", async () => {
     const { createSessionToken, readSessionToken } = await import("./session");
-    const token = await createSessionToken({ sessionId: "f3115316-b95d-463d-a2cf-94145af247dc", userId: "4f9d9c6b-86ae-4b6e-9ae6-3b7d4994945f", email: "driver@example.gov", displayName: "Driver One", oidcSubject: "provider-subject", oidcIssuer: "https://identity.example.gov" });
-    await expect(readSessionToken(token)).resolves.toMatchObject({ sessionId: "f3115316-b95d-463d-a2cf-94145af247dc", email: "driver@example.gov", oidcSubject: "provider-subject", oidcIssuer: "https://identity.example.gov" });
+    const token = await createSessionToken({ sessionId: "f3115316-b95d-463d-a2cf-94145af247dc", userId: "4f9d9c6b-86ae-4b6e-9ae6-3b7d4994945f", email: "driver@example.gov", displayName: "Driver One", authMethod: "oidc", oidcSubject: "provider-subject", oidcIssuer: "https://identity.example.gov" });
+    await expect(readSessionToken(token)).resolves.toMatchObject({ sessionId: "f3115316-b95d-463d-a2cf-94145af247dc", email: "driver@example.gov", authMethod: "oidc", oidcSubject: "provider-subject", oidcIssuer: "https://identity.example.gov" });
     const index = Math.floor(token.length / 2);
     const tampered = `${token.slice(0, index)}${token[index] === "a" ? "b" : "a"}${token.slice(index + 1)}`;
     await expect(readSessionToken(tampered)).rejects.toThrow();
+  });
+
+  it("round-trips a version-bound local session", async () => {
+    const { createSessionToken, readSessionToken } = await import("./session");
+    const token = await createSessionToken({ sessionId: "a3115316-b95d-463d-a2cf-94145af247dc", userId: "4f9d9c6b-86ae-4b6e-9ae6-3b7d4994945f", email: "admin@example.gov", displayName: "Administrator", authMethod: "local", authVersion: 3 });
+    await expect(readSessionToken(token)).resolves.toMatchObject({ authMethod: "local", authVersion: 3 });
   });
 
   it("round-trips a short-lived PKCE transaction and constrains return paths", async () => {

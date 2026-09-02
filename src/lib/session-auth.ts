@@ -17,11 +17,16 @@ export async function validateActiveSessionToken(token: string): Promise<User> {
       isNull(authSessions.revokedAt),
       gt(authSessions.expiresAt, new Date()),
       eq(users.active, true),
-      eq(users.oidcIssuer, session.oidcIssuer),
-      eq(users.oidcSubject, session.oidcSubject),
       eq(users.email, session.email),
     ))
     .limit(1);
   if (!actor) throw new Error("The session is inactive or no longer authorized.");
+  if (session.authMethod === "local") {
+    if (!actor.user.localPasswordHash || actor.user.recordVersion !== session.authVersion) {
+      throw new Error("The local authentication binding is no longer valid.");
+    }
+  } else if (actor.user.oidcIssuer !== session.oidcIssuer || actor.user.oidcSubject !== session.oidcSubject) {
+    throw new Error("The OIDC authentication binding is no longer valid.");
+  }
   return actor.user;
 }

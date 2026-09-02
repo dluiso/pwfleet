@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import net from "node:net";
 import { lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { requestRateLimits } from "@/db/schema";
@@ -9,8 +10,9 @@ export type RateLimitResult = { allowed: boolean; limit: number; remaining: numb
 function clientAddress(request: Request): string {
   const env = getEnvironment();
   if (!env.TRUST_PROXY_HEADERS) return "untrusted-proxy";
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+  const raw = request.headers.get(env.TRUSTED_CLIENT_IP_HEADER);
+  const candidate = env.TRUSTED_CLIENT_IP_HEADER === "x-forwarded-for" ? raw?.split(",")[0]?.trim() : raw?.trim();
+  return candidate && net.isIP(candidate) ? candidate : "unknown";
 }
 
 async function enforceRateLimitKey(key: string, scope: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
@@ -44,6 +46,10 @@ export async function enforceRateLimit(request: Request, scope: string, limit: n
 
 export async function enforceActorRateLimit(actorId: string, scope: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
   return enforceRateLimitKey(`actor:${actorId}`, scope, limit, windowSeconds);
+}
+
+export async function enforceCredentialRateLimit(credential: string, scope: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
+  return enforceRateLimitKey(`credential:${credential.trim().toLowerCase()}`, scope, limit, windowSeconds);
 }
 
 export function rateLimitResponse(result: RateLimitResult): Response {

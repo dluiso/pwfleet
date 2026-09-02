@@ -26,7 +26,7 @@ const envSchema = z
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50),
     DATABASE_SSL_MODE: z.enum(["disable", "require"]),
     DATABASE_SSL_CA_FILE: optionalString,
-    AUTH_MODE: z.enum(["development", "oidc"]),
+    AUTH_MODE: z.enum(["development", "local", "oidc"]),
     DEV_ACTOR_EMAIL: optionalString,
     OIDC_ISSUER: optionalUrl,
     OIDC_CLIENT_ID: optionalString,
@@ -40,6 +40,7 @@ const envSchema = z
     ),
     SESSION_MAX_AGE_MINUTES: z.coerce.number().int().min(15).max(720),
     TRUST_PROXY_HEADERS: z.enum(["true", "false"]).transform((value) => value === "true"),
+    TRUSTED_CLIENT_IP_HEADER: z.enum(["cf-connecting-ip", "x-forwarded-for", "x-real-ip"]).default("x-forwarded-for"),
     EMAIL_MODE: z.enum(["capture", "smtp"]),
     SMTP_HOST: optionalString,
     SMTP_PORT: optionalPositiveInteger,
@@ -73,11 +74,11 @@ const envSchema = z
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV === "production") {
-      if (env.AUTH_MODE !== "oidc") {
+      if (env.AUTH_MODE === "development") {
         context.addIssue({
           code: "custom",
           path: ["AUTH_MODE"],
-          message: "Production requires OIDC authentication.",
+          message: "Production forbids the development identity bypass.",
         });
       }
 
@@ -139,6 +140,14 @@ const envSchema = z
           });
         }
       }
+    }
+
+    if (env.AUTH_MODE === "local" && !env.AUTH_SECRET) {
+      context.addIssue({
+        code: "custom",
+        path: ["AUTH_SECRET"],
+        message: "AUTH_SECRET is required when local authentication is enabled.",
+      });
     }
 
     if (env.EMAIL_MODE === "smtp") {
@@ -226,6 +235,7 @@ export function getEnvironment(): AppEnvironment {
         OIDC_CLOCK_TOLERANCE_SECONDS: "30",
         SESSION_MAX_AGE_MINUTES: "480",
         TRUST_PROXY_HEADERS: "false",
+        TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
         EMAIL_MODE: "capture",
         SMTP_SECURE: "true",
         FILE_STORAGE_ROOT: "/tmp/harvey-pw-fleet-build",

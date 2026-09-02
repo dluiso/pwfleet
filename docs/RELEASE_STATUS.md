@@ -6,7 +6,7 @@ Status date: 2026-09-02
 
 The repository is complete as a local Linux production release candidate. Current observed evidence:
 
-- lint, TypeScript, 37 unit tests, and optimized Next.js build pass locally and on the Ubuntu target;
+- lint, TypeScript, 41 unit tests, and optimized Next.js build pass locally; the prior 37-test release also passed on the Ubuntu target;
 - configurable form-family creation, empty-draft rendering, and protected unused-draft deletion passed a local API/database lifecycle check with exact QA cleanup;
 - dependency audit reports no known vulnerability;
 - all 18 checksum-locked migrations are applied in the local upgrade database;
@@ -22,7 +22,7 @@ Responsive Chrome inspection confirmed the desktop dashboard, mobile navigation,
 
 The Ubuntu 24.04 target is prepared natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. All 18 migrations are applied to the least-privilege `pwfleet` database, the initial administrator authorization record exists, and production contains only the two supplied form families, two vehicle classes, 10 sections, and 63 fields; it contains no sample vehicles or users. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
 
-No Azure, Microsoft Entra ID, Exchange Online, or Microsoft 365 setting was changed. The application and worker services remain disabled and inactive, intentionally failing closed until the owner completes `MICROSOFT_MANUAL_CONFIGURATION.md` and the resulting OIDC and SMTP OAuth2 values pass the target preflight.
+No Azure, Microsoft Entra ID, Exchange Online, or Microsoft 365 setting was changed. A secure transitional local-authentication mode and non-delivery email capture mode are now available so the application can operate before those integrations are completed. Target deployment and public login acceptance remain to be observed.
 
 ## Production go-live status
 

@@ -6,15 +6,23 @@ const tokenIssuer = "harvey-pw-fleet";
 const sessionAudience = "fleet-session";
 const transactionAudience = "oidc-transaction";
 
-export type FleetSession = {
+type FleetSessionBase = {
   sessionId: string;
   userId: string;
   email: string;
   displayName: string;
-  oidcSubject: string;
-  oidcIssuer: string;
   expiresAt: number;
 };
+
+export type FleetSession = FleetSessionBase & (
+  | { authMethod: "local"; authVersion: number }
+  | { authMethod: "oidc"; oidcSubject: string; oidcIssuer: string }
+);
+
+type SessionTokenInput = Omit<FleetSessionBase, "expiresAt"> & (
+  | { authMethod: "local"; authVersion: number }
+  | { authMethod: "oidc"; oidcSubject: string; oidcIssuer: string }
+);
 
 export type OidcTransaction = {
   state: string;
@@ -71,10 +79,16 @@ export function transactionCookieOptions(maxAge: number) {
   return { httpOnly: true as const, secure: secureCookie(), sameSite: "lax" as const, path: "/", maxAge };
 }
 
-export async function createSessionToken(input: Omit<FleetSession, "expiresAt">): Promise<string> {
+export async function createSessionToken(input: SessionTokenInput): Promise<string> {
   const env = getEnvironment();
   return encrypt(
-    { sub: input.userId, email: input.email, name: input.displayName, oidc_sub: input.oidcSubject, oidc_iss: input.oidcIssuer },
+    {
+      sub: input.userId,
+      email: input.email,
+      name: input.displayName,
+      auth_method: input.authMethod,
+      ...(input.authMethod === "local" ? { auth_ver: input.authVersion } : { oidc_sub: input.oidcSubject, oidc_iss: input.oidcIssuer }),
+    },
     sessionAudience,
     `${env.SESSION_MAX_AGE_MINUTES}m`,
     input.sessionId,
@@ -83,10 +97,15 @@ export async function createSessionToken(input: Omit<FleetSession, "expiresAt">)
 
 export async function readSessionToken(token: string): Promise<FleetSession> {
   const payload = await decrypt(token, sessionAudience);
-  if (!payload.sub || !payload.jti || typeof payload.email !== "string" || typeof payload.name !== "string" || typeof payload.oidc_sub !== "string" || typeof payload.oidc_iss !== "string" || !payload.exp) {
+  if (!payload.sub || !payload.jti || typeof payload.email !== "string" || typeof payload.name !== "string" || !payload.exp || (payload.auth_method !== "local" && payload.auth_method !== "oidc")) {
     throw new Error("The encrypted session payload is incomplete.");
   }
-  return { sessionId: payload.jti, userId: payload.sub, email: payload.email, displayName: payload.name, oidcSubject: payload.oidc_sub, oidcIssuer: payload.oidc_iss, expiresAt: payload.exp };
+  if (payload.auth_method === "local") {
+    if (typeof payload.auth_ver !== "number" || !Number.isInteger(payload.auth_ver)) throw new Error("The local session binding is incomplete.");
+    return { sessionId: payload.jti, userId: payload.sub, email: payload.email, displayName: payload.name, authMethod: "local", authVersion: payload.auth_ver, expiresAt: payload.exp };
+  }
+  if (typeof payload.oidc_sub !== "string" || typeof payload.oidc_iss !== "string") throw new Error("The OIDC session binding is incomplete.");
+  return { sessionId: payload.jti, userId: payload.sub, email: payload.email, displayName: payload.name, authMethod: "oidc", oidcSubject: payload.oidc_sub, oidcIssuer: payload.oidc_iss, expiresAt: payload.exp };
 }
 
 export async function createOidcTransactionToken(input: OidcTransaction): Promise<string> {

@@ -7,7 +7,7 @@ async function main() {
   if (env.NODE_ENV !== "production") throw new Error("Production configuration checks require NODE_ENV=production.");
   if (!env.DATABASE_SSL_CA_FILE) throw new Error("Production requires an explicit database CA file.");
   await fs.access(path.resolve(env.DATABASE_SSL_CA_FILE), fs.constants.R_OK);
-  process.stdout.write(`${JSON.stringify({ status: "configuration-valid", authentication: "oidc", databaseTls: "verified-ca-required", email: "smtp", fileScanning: "clamav" })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "configuration-valid", authentication: env.AUTH_MODE, databaseTls: "verified-ca-required", email: env.EMAIL_MODE, fileScanning: "clamav" })}\n`);
 }
 
 main().catch((error) => {

@@ -18,6 +18,7 @@
     "db:migrate": "tsx --env-file-if-exists=.env.local src/db/migrate.ts",
     "db:seed": "tsx --env-file-if-exists=.env.local src/db/seed.ts",
     "db:bootstrap-admin": "tsx src/db/bootstrap-production-admin.ts",
+    "db:bootstrap-local-password": "tsx src/db/bootstrap-production-local-password.ts",
     "db:bind-bootstrap-admin": "tsx src/db/bind-bootstrap-production-admin.ts",
     "db:bootstrap-catalog": "tsx src/db/bootstrap-production-catalog.ts",
     "qa:create-inspection": "tsx --env-file-if-exists=.env.local src/db/create-qa-inspection.ts",

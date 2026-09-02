@@ -67,7 +67,7 @@ export class AuthorizationError extends Error {
 export async function getCurrentActor(): Promise<User> {
   const env = getEnvironment();
 
-  if (env.AUTH_MODE === "oidc") {
+  if (env.AUTH_MODE !== "development") {
     const token = (await cookies()).get(sessionCookieName())?.value;
     if (!token) throw new AuthenticationRequiredError();
     try {

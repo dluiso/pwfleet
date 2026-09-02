@@ -23,8 +23,9 @@ try {
     const expected = crypto.createHash("sha256").update(source).digest("hex");
     if (appliedByName.get(filename) !== expected) throw new Error(`Database migration validation failed for ${filename}.`);
   }
-  const [administrator] = await db.select({ id: users.id }).from(users).where(sql`${users.role} = 'administrator' and ${users.active} = true`).limit(1);
+  const [administrator] = await db.select({ id: users.id, localPasswordHash: users.localPasswordHash }).from(users).where(sql`${users.role} = 'administrator' and ${users.active} = true`).limit(1);
   if (!administrator) throw new Error("At least one active administrator is required.");
+  if (env.AUTH_MODE === "local" && !administrator.localPasswordHash) throw new Error("Local authentication requires an active administrator with a password.");
   const [unsafeAssignment] = await db
     .select({ id: vehicleInspectionAssignments.id })
     .from(vehicleInspectionAssignments)
@@ -32,13 +33,24 @@ try {
     .where(sql`(${vehicleInspectionAssignments.effectiveUntil} is null or ${vehicleInspectionAssignments.effectiveUntil} >= current_date) and ${inspectionTemplates.ruleSetStatus} <> 'approved'`)
     .limit(1);
   if (unsafeAssignment) throw new Error("Every active vehicle form assignment must use an approved rule set.");
-  const discovery = await discoverOidc();
+  const discovery = env.AUTH_MODE === "oidc" ? await discoverOidc() : null;
   const malware = await checkMalwareScanner();
-  const smtp = await createSmtpTransport();
-  if (!smtp) throw new Error("SMTP transport is required in production.");
-  await smtp.verify();
-  smtp.close();
-  process.stdout.write(`${JSON.stringify({ status: "ready", databaseMigrations: migrations.length, storage: "writable", oidcIssuerValidated: discovery.issuer, malwareScanner: malware, smtp: "verified", activeAdministrator: true })}\n`);
+  const smtp = env.EMAIL_MODE === "smtp" ? await createSmtpTransport() : null;
+  if (env.EMAIL_MODE === "smtp") {
+    if (!smtp) throw new Error("SMTP transport is required when email delivery is enabled.");
+    await smtp.verify();
+    smtp.close();
+  }
+  process.stdout.write(`${JSON.stringify({
+    status: "ready",
+    databaseMigrations: migrations.length,
+    storage: "writable",
+    authentication: env.AUTH_MODE,
+    ...(discovery ? { oidcIssuerValidated: discovery.issuer } : {}),
+    malwareScanner: malware,
+    email: env.EMAIL_MODE === "smtp" ? "smtp-verified" : "capture",
+    activeAdministrator: true,
+  })}\n`);
 } catch (error) {
   const name = error instanceof Error ? error.name : "UnknownError";
   process.stderr.write(`Production readiness failed: ${name}\n`);

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     if (!user) return errorResponse("Your identity is valid, but it has not been authorized for Harvey PW Fleet. Contact an administrator.", 403);
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + env.SESSION_MAX_AGE_MINUTES * 60_000);
-    const sessionToken = await createSessionToken({ sessionId, userId: user.id, email: user.email, displayName: user.displayName, oidcSubject: identity.subject, oidcIssuer: env.OIDC_ISSUER! });
+    const sessionToken = await createSessionToken({ sessionId, userId: user.id, email: user.email, displayName: user.displayName, authMethod: "oidc", oidcSubject: identity.subject, oidcIssuer: env.OIDC_ISSUER! });
     await db.insert(authSessions).values({ id: sessionId, userId: user.id, expiresAt });
     await db.insert(auditEvents).values({ actorUserId: user.id, eventType: "authentication.login", entityType: "user", entityId: user.id, metadata: { providerSubjectHash: crypto.createHash("sha256").update(identity.subject).digest("hex") } });
     const response = NextResponse.redirect(new URL(transaction.returnTo, env.APP_BASE_URL));

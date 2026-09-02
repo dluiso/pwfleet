@@ -35,7 +35,9 @@ pnpm production:config-check
 pnpm db:migrate
 pnpm db:bootstrap-catalog
 pnpm db:bootstrap-admin
-pnpm db:bind-bootstrap-admin
+if [[ "$AUTH_MODE" == "oidc" ]]; then
+  pnpm db:bind-bootstrap-admin
+fi
 runuser -u pwfleet --preserve-environment -- pnpm production:preflight
 
 systemctl daemon-reload

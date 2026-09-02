@@ -40,7 +40,7 @@ describe("environment security policy", () => {
     vi.stubEnv("EMAIL_RETRY_BASE_MINUTES", "5");
 
     const { getEnvironment } = await import("./env");
-    expect(() => getEnvironment()).toThrow(/Production requires OIDC/);
+    expect(() => getEnvironment()).toThrow(/forbids the development identity bypass/);
   });
 
   it("requires HTTPS for production", async () => {
