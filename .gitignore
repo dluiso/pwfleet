@@ -1,0 +1,21 @@
+node_modules/
+.next/
+coverage/
+dist/
+*.log
+*.tsbuildinfo
+
+# Local-only configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Generated reports and local uploads
+var/
+output/
+tmp/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/

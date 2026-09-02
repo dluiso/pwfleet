@@ -1,0 +1,15 @@
+[Unit]
+Description=Harvey PW Fleet scheduled notification and report worker
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/harvey-pw-fleet
+ExecStart=/usr/bin/docker compose --env-file /etc/harvey-pw-fleet/deploy.env -f compose.production.yaml --profile jobs run --rm worker
+User=root
+Group=root
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true

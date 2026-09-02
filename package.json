@@ -1,0 +1,57 @@
+{
+  "name": "harvey-pw-fleet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "tsx --env-file-if-exists=.env.local src/db/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env.local src/db/seed.ts",
+    "db:bootstrap-admin": "tsx src/db/bootstrap-production-admin.ts",
+    "qa:create-inspection": "tsx --env-file-if-exists=.env.local src/db/create-qa-inspection.ts",
+    "qa:safety-cycle": "tsx --env-file-if-exists=.env.local src/db/qa-safety-case-cycle.ts",
+    "qa:report-delivery": "tsx --env-file-if-exists=.env.local src/db/qa-report-delivery.ts",
+    "qa:vehicle-dossier": "tsx --env-file-if-exists=.env.local src/db/qa-vehicle-dossier.ts",
+    "notifications:process": "tsx --env-file-if-exists=.env.local src/workers/process-notifications.ts",
+    "production:config-check": "tsx src/db/production-configuration.ts",
+    "production:preflight": "tsx src/db/production-readiness.ts",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "4.9.0",
+    "drizzle-orm": "0.45.2",
+    "jose": "6.2.5",
+    "lucide-react": "1.38.0",
+    "next": "16.3.4",
+    "nodemailer": "9.1.0",
+    "pg": "8.23.0",
+    "qrcode": "1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "0.35.4",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "@types/nodemailer": "8.0.1",
+    "@types/pg": "8.23.1",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.4",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}
