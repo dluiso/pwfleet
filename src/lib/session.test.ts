@@ -72,6 +72,7 @@ describe("encrypted authentication sessions", () => {
     vi.stubEnv("DATABASE_SSL_MODE", "require");
     vi.stubEnv("TRUST_PROXY_HEADERS", "true");
     vi.stubEnv("FILE_SCANNING_MODE", "clamav");
+    vi.stubEnv("CLAMAV_SOCKET_PATH", "");
     vi.stubEnv("CLAMAV_HOST", "clamav");
     vi.stubEnv("CLAMAV_PORT", "3310");
     const { sessionCookieOptions, transactionCookieOptions } = await import("./session");
