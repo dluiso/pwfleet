@@ -56,6 +56,7 @@ const envSchema = z
     UPLOAD_PROCESSING_QUEUE_LIMIT: z.coerce.number().int().min(0).max(100),
     STORAGE_MIN_FREE_BYTES: z.coerce.number().int().min(0),
     FILE_SCANNING_MODE: z.enum(["disabled", "clamav"]),
+    CLAMAV_SOCKET_PATH: optionalString,
     CLAMAV_HOST: optionalString,
     CLAMAV_PORT: optionalPositiveInteger,
     REPORT_ARTIFACT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650),
@@ -151,8 +152,30 @@ const envSchema = z
       }
     }
     if (env.FILE_SCANNING_MODE === "clamav") {
-      for (const key of ["CLAMAV_HOST", "CLAMAV_PORT"] as const) {
-        if (!env[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when ClamAV scanning is enabled.` });
+      const hasSocket = Boolean(env.CLAMAV_SOCKET_PATH);
+      const hasTcpHost = Boolean(env.CLAMAV_HOST);
+      const hasTcpPort = Boolean(env.CLAMAV_PORT);
+
+      if (!hasSocket && !(hasTcpHost && hasTcpPort)) {
+        context.addIssue({
+          code: "custom",
+          path: ["CLAMAV_SOCKET_PATH"],
+          message: "ClamAV scanning requires a local socket path or both CLAMAV_HOST and CLAMAV_PORT.",
+        });
+      }
+      if (hasSocket && (hasTcpHost || hasTcpPort)) {
+        context.addIssue({
+          code: "custom",
+          path: ["CLAMAV_SOCKET_PATH"],
+          message: "Configure ClamAV with either a local socket or TCP, not both.",
+        });
+      }
+      if (!hasSocket && hasTcpHost !== hasTcpPort) {
+        context.addIssue({
+          code: "custom",
+          path: [hasTcpHost ? "CLAMAV_PORT" : "CLAMAV_HOST"],
+          message: "CLAMAV_HOST and CLAMAV_PORT must be configured together.",
+        });
       }
     }
   });
