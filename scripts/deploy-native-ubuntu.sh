@@ -18,7 +18,24 @@ getent passwd pwfleet >/dev/null || { echo "The pwfleet system user is unavailab
 [[ -z "$(git status --porcelain)" ]] || { echo "The deployment checkout is not clean." >&2; exit 1; }
 
 pnpm install --frozen-lockfile
-pnpm check
+pnpm lint
+pnpm typecheck
+pnpm test
+
+service_was_active=0
+if systemctl is-active --quiet pwfleet.service; then
+  service_was_active=1
+  systemctl stop pwfleet.service
+fi
+
+restore_previous_service() {
+  if [[ "$service_was_active" -eq 1 ]] && ! systemctl is-active --quiet pwfleet.service; then
+    systemctl start pwfleet.service || true
+  fi
+}
+trap restore_previous_service EXIT
+
+pnpm build
 
 install -o root -g root -m 0644 deploy/native/pwfleet.service /etc/systemd/system/pwfleet.service
 install -o root -g root -m 0644 deploy/native/pwfleet-worker.service /etc/systemd/system/pwfleet-worker.service
@@ -38,7 +55,7 @@ pnpm db:bootstrap-admin
 if [[ "$AUTH_MODE" == "oidc" ]]; then
   pnpm db:bind-bootstrap-admin
 fi
-runuser -u pwfleet --preserve-environment -- pnpm production:preflight
+runuser -u pwfleet --preserve-environment -- ./node_modules/.bin/tsx src/db/production-readiness.ts
 
 systemctl daemon-reload
 systemctl enable --now pwfleet.service pwfleet-worker.timer
