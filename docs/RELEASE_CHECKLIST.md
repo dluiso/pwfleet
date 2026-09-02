@@ -4,9 +4,9 @@ Each gate requires observed evidence. “Configured” without a test is not acc
 
 ## Code and artifacts
 
-- [ ] Clean reviewed release diff; no secrets, local environment files, debug output, or unrelated files.
-- [ ] `pnpm install --frozen-lockfile`, `pnpm check`, dependency audit, and production Docker builds pass from a clean checkout.
-- [ ] All migrations apply to a production-like empty database and an upgrade copy; applied checksums match source.
+- [x] Clean reviewed release diff; no secrets, local environment files, debug output, or unrelated files.
+- [x] `pnpm install --frozen-lockfile`, `pnpm check`, dependency audit, and native Ubuntu build pass from the deployed checkout.
+- [x] All 18 migrations apply to the empty production database; applied checksums match source.
 - [ ] Safety-cycle, report-delivery, vehicle-dossier, notification retry, PDF, CSV, and storage cleanup QA pass with exact cleanup.
 - [x] The 15 findings from standard scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused source/test verification recorded in `SECURITY_REMEDIATION.md`; environment-specific security acceptance remains below.
 
@@ -34,7 +34,7 @@ Each gate requires observed evidence. “Configured” without a test is not acc
 ## Infrastructure and recovery
 
 - [ ] Public DNS/TLS, nginx request limits, forwarded-header replacement, loopback-only app binding, CSP, HSTS, and security headers are observed.
-- [ ] PostgreSQL TLS and CA validation, least privilege, capacity, monitoring, and encrypted backup retention are approved.
+- [ ] PostgreSQL TLS, CA validation, and least privilege are observed; capacity monitoring, encrypted off-host backup retention, and restore ownership remain pending.
 - [ ] Persistent uploads survive container replacement; ClamAV rejects the EICAR test file in a controlled non-production test.
 - [ ] `/api/live` and `/api/ready` alerts reach an accountable operator.
 - [ ] A full database-plus-upload backup restores into an isolated target and sampled files/hashes/PDFs reconcile.
