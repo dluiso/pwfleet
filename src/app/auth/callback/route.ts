@@ -7,6 +7,7 @@ import { getEnvironment } from "@/lib/env";
 import { exchangeAuthorizationCode, identityFromClaims, verifyIdToken } from "@/lib/oidc";
 import { createSessionToken, readOidcTransactionToken, sessionCookieName, sessionCookieOptions, transactionCookieName, transactionCookieOptions } from "@/lib/session";
 import { enforceRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { getRuntimeAuthenticationConfiguration } from "@/modules/integrations/settings";
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);
@@ -22,7 +23,8 @@ function errorResponse(message: string, status: number, clearTransaction = true)
 
 export async function GET(request: NextRequest) {
   const env = getEnvironment();
-  if (env.AUTH_MODE !== "oidc") return NextResponse.redirect(new URL("/", env.APP_BASE_URL));
+  const authentication = await getRuntimeAuthenticationConfiguration();
+  if (authentication.mode !== "oidc") return NextResponse.redirect(new URL("/", env.APP_BASE_URL));
   const rateLimit = await enforceRateLimit(request, "auth.callback", 30, 900);
   if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
   const url = request.nextUrl;
@@ -34,13 +36,13 @@ export async function GET(request: NextRequest) {
   try {
     const transaction = await readOidcTransactionToken(transactionToken);
     if (!safeEqual(state, transaction.state)) return errorResponse("The authentication response could not be validated.", 400);
-    const idToken = await exchangeAuthorizationCode(code, transaction.codeVerifier);
-    const identity = identityFromClaims(await verifyIdToken(idToken, transaction.nonce));
+    const idToken = await exchangeAuthorizationCode(code, transaction.codeVerifier, authentication);
+    const identity = identityFromClaims(await verifyIdToken(idToken, transaction.nonce, authentication));
     const user = await db.transaction(async (transactionDb) => {
       const [boundCandidate] = await transactionDb
         .select()
         .from(users)
-        .where(and(eq(users.oidcIssuer, env.OIDC_ISSUER!), eq(users.oidcSubject, identity.subject), eq(users.active, true)))
+        .where(and(eq(users.oidcIssuer, authentication.issuer!), eq(users.oidcSubject, identity.subject), eq(users.active, true)))
         .for("update")
         .limit(1);
       if (boundCandidate) return boundCandidate;
@@ -52,11 +54,11 @@ export async function GET(request: NextRequest) {
         .for("update")
         .limit(1);
       if (!candidate) return null;
-      if ((candidate.oidcIssuer && candidate.oidcIssuer !== env.OIDC_ISSUER) || (candidate.oidcSubject && candidate.oidcSubject !== identity.subject)) return null;
+      if ((candidate.oidcIssuer && candidate.oidcIssuer !== authentication.issuer) || (candidate.oidcSubject && candidate.oidcSubject !== identity.subject)) return null;
       if (!candidate.oidcSubject) {
         const [bound] = await transactionDb
           .update(users)
-          .set({ oidcIssuer: env.OIDC_ISSUER, oidcSubject: identity.subject, identityBoundAt: new Date(), recordVersion: candidate.recordVersion + 1, updatedAt: new Date() })
+          .set({ oidcIssuer: authentication.issuer, oidcSubject: identity.subject, identityBoundAt: new Date(), recordVersion: candidate.recordVersion + 1, updatedAt: new Date() })
           .where(eq(users.id, candidate.id))
           .returning();
         await transactionDb.insert(auditEvents).values({ actorUserId: candidate.id, eventType: "authentication.identity_bound", entityType: "user", entityId: candidate.id, metadata: { providerSubjectHash: crypto.createHash("sha256").update(identity.subject).digest("hex") } });
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!user) return errorResponse("Your identity is valid, but it has not been authorized for Harvey PW Fleet. Contact an administrator.", 403);
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + env.SESSION_MAX_AGE_MINUTES * 60_000);
-    const sessionToken = await createSessionToken({ sessionId, userId: user.id, email: user.email, displayName: user.displayName, authMethod: "oidc", oidcSubject: identity.subject, oidcIssuer: env.OIDC_ISSUER! });
+    const sessionToken = await createSessionToken({ sessionId, userId: user.id, email: user.email, displayName: user.displayName, authMethod: "oidc", oidcSubject: identity.subject, oidcIssuer: authentication.issuer! });
     await db.insert(authSessions).values({ id: sessionId, userId: user.id, expiresAt });
     await db.insert(auditEvents).values({ actorUserId: user.id, eventType: "authentication.login", entityType: "user", entityId: user.id, metadata: { providerSubjectHash: crypto.createHash("sha256").update(identity.subject).digest("hex") } });
     const response = NextResponse.redirect(new URL(transaction.returnTo, env.APP_BASE_URL));

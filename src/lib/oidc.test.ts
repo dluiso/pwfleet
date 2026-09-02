@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityFromClaims } from "./oidc";
+import { discoverOidc, identityFromClaims } from "./oidc";
 
 describe("OIDC identity claims", () => {
   it("marks only an explicitly verified email as eligible for first binding", () => {
@@ -17,5 +17,9 @@ describe("OIDC identity claims", () => {
       sub: "application-specific-subject",
       oid: "A62D607B-033D-4B96-9D66-3015BD250F45",
     }).subject).toBe("a62d607b-033d-4b96-9d66-3015bd250f45");
+  });
+
+  it("rejects discovery outside the approved Microsoft identity host", async () => {
+    await expect(discoverOidc({ mode: "oidc", issuer: "https://identity.attacker.invalid/tenant/v2.0", clientId: "client", clientSecret: "secret", clientAuthMethod: "client_secret_basic", scopes: "openid profile email", clockToleranceSeconds: 30 }, true)).rejects.toThrow(/approved Microsoft identity host/);
   });
 });

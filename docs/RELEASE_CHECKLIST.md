@@ -6,7 +6,7 @@ Each gate requires observed evidence. “Configured” without a test is not acc
 
 - [x] Clean reviewed release diff; no secrets, local environment files, debug output, or unrelated files.
 - [x] `pnpm install --frozen-lockfile`, `pnpm check`, dependency audit, and native Ubuntu build pass from the deployed checkout.
-- [x] All 18 migrations apply to the empty production database; applied checksums match source.
+- [x] All 20 migrations apply to the release database; applied checksums match source.
 - [ ] Safety-cycle, report-delivery, vehicle-dossier, notification retry, PDF, CSV, and storage cleanup QA pass with exact cleanup.
 - [x] The 15 findings from standard scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused source/test verification recorded in `SECURITY_REMEDIATION.md`; environment-specific security acceptance remains below.
 

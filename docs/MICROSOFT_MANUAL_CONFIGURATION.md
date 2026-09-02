@@ -28,18 +28,15 @@ Microsoft documenta que `oid` es el identificador inmutable del usuario dentro d
 
 La URI debe registrarse como plataforma Web y coincidir exactamente con la utilizada por la aplicación: [Add a redirect URI](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri).
 
-## 3. Valores resultantes para la autenticación
+## 3. Activar la autenticación desde PW Fleet
 
-Prepare estos cuatro valores sin colocarlos en Git, tickets o documentación pública:
+1. Inicie sesión con la cuenta administrativa local.
+2. Abra **Administration > Microsoft & email integrations**.
+3. Seleccione **Microsoft Entra ID** y complete el issuer `https://login.microsoftonline.com/<DIRECTORY_TENANT_ID>/v2.0`, Application client ID, client secret y el Object ID del administrador actual.
+4. Confirme **Save authentication**. PW Fleet restringe la conexión al host oficial de Microsoft, valida el discovery document, cifra el secreto y solo entonces activa Entra.
+5. La activación revoca las sesiones existentes. Complete inmediatamente un inicio de sesión Microsoft y verifique el rol administrativo.
 
-```text
-OIDC_ISSUER=https://login.microsoftonline.com/<DIRECTORY_TENANT_ID>/v2.0
-OIDC_CLIENT_ID=<APPLICATION_CLIENT_ID>
-OIDC_CLIENT_SECRET=<CLIENT_SECRET_VALUE>
-BOOTSTRAP_ADMIN_IDENTITY_SUBJECT=<ADMIN_USER_OBJECT_ID_IN_CITY_TENANT>
-```
-
-El administrador del servidor los almacenará en `/etc/pwfleet/app.env`, protegido como `root:pwfleet` con modo `0640`. El proceso `pwfleet` puede leerlos, pero no aparecen en Git ni en el QR.
+Los secretos son write-only: la pantalla nunca devuelve su valor guardado al navegador y un campo vacío conserva el valor cifrado existente.
 
 ## 4. Crear una aplicación separada para correo OAuth2
 
@@ -86,32 +83,24 @@ Add-RecipientPermission `
 
 El `ObjectId` de `New-ServicePrincipal` debe ser el **Object ID de Enterprise applications**, no el Object ID mostrado en App registrations. Microsoft advierte que intercambiarlos provoca un fallo de autenticación. Conceda acceso solamente al buzón remitente destinado a PW Fleet.
 
-## 6. Valores resultantes para correo
+## 6. Activar el correo desde PW Fleet
 
-```text
-SMTP_HOST=smtp.office365.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_AUTH_MODE=oauth2
-SMTP_USERNAME=<PW_FLEET_SENDER_MAILBOX>
-SMTP_PASSWORD=
-SMTP_OAUTH_TENANT_ID=<DIRECTORY_TENANT_ID>
-SMTP_OAUTH_CLIENT_ID=<MAILER_APPLICATION_CLIENT_ID>
-SMTP_OAUTH_CLIENT_SECRET=<MAILER_CLIENT_SECRET_VALUE>
-EMAIL_FROM="City of Harvey PW Fleet <sender-mailbox@cityofharveyil.gov>"
-```
+En **Administration > Microsoft & email integrations**, seleccione **SMTP delivery** y configure:
+
+- SMTP host: `smtp.office365.com`
+- Port: `587`
+- Implicit TLS: desactivado, para usar STARTTLS
+- Authentication method: **Microsoft OAuth2**
+- Username: buzón remitente autorizado
+- Microsoft tenant ID
+- Mailer application client ID
+- Mailer application client secret
+- From address y nombre visible aprobados
 
 PW Fleet solicitará tokens al scope `https://outlook.office365.com/.default` y usará SASL XOAUTH2 sobre STARTTLS en el puerto 587. No requiere guardar la contraseña de un usuario o buzón.
 
 ## 7. Entrega y activación
 
-Entregue mediante un canal seguro los ocho valores de las secciones 3 y 6 al administrador del servidor. El administrador deberá:
+Entregue los valores mediante un canal seguro al administrador autorizado, quien los introducirá directamente en la pantalla protegida. No deben copiarse a Git, tickets, documentación ni variables públicas del navegador.
 
-1. guardarlos en `/etc/pwfleet/app.env` sin imprimirlos en consola;
-2. ejecutar la validación de configuración;
-3. enlazar el Object ID del administrador inicial;
-4. ejecutar el preflight de OIDC, PostgreSQL, almacenamiento, ClamAV y SMTP;
-5. iniciar `pwfleet.service` y `pwfleet-worker.timer`;
-6. validar login, logout, envío, alertas, PDF y descarga a través de la URL pública.
-
-La aplicación permanece intencionalmente detenida si falta cualquiera de estos valores o si Microsoft rechaza discovery, token o SMTP. No debe sustituirse el preflight por valores ficticios para iniciar producción.
+La activación de correo realiza primero una solicitud OAuth y una verificación SMTP real. Si Microsoft rechaza el token, TLS o SMTP, PW Fleet conserva el modo anterior y muestra un error genérico sin guardar ni registrar el secreto. Después de activar, valide login, logout, una alerta controlada, el PDF adjunto y el historial de entrega.

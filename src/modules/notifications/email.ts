@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { z } from "zod";
 import { getEnvironment } from "@/lib/env";
+import type { EmailRuntimeConfiguration } from "@/modules/integrations/settings";
 import { formatDateTime, formatEnum } from "@/lib/format";
 
 export type NotificationPayload = {
@@ -148,18 +149,17 @@ const oauthTokenSchema = z.object({
   token_type: z.literal("Bearer"),
 });
 
-async function getSmtpOAuthAccessToken() {
-  const env = getEnvironment();
+async function getSmtpOAuthAccessToken(configuration: EmailRuntimeConfiguration) {
   const endpoint = new URL(
-    `/${encodeURIComponent(env.SMTP_OAUTH_TENANT_ID!)}/oauth2/v2.0/token`,
+    `/${encodeURIComponent(configuration.oauthTenantId!)}/oauth2/v2.0/token`,
     "https://login.microsoftonline.com",
   );
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: env.SMTP_OAUTH_CLIENT_ID!,
-      client_secret: env.SMTP_OAUTH_CLIENT_SECRET!,
+      client_id: configuration.oauthClientId!,
+      client_secret: configuration.oauthClientSecret!,
       grant_type: "client_credentials",
       scope: "https://outlook.office365.com/.default",
     }),
@@ -169,25 +169,23 @@ async function getSmtpOAuthAccessToken() {
   return oauthTokenSchema.parse(await response.json()).access_token;
 }
 
-export async function createSmtpTransport(): Promise<Transporter | null> {
-  const env = getEnvironment();
-  if (env.EMAIL_MODE !== "smtp") return null;
-
-  const auth = env.SMTP_AUTH_MODE === "oauth2"
+export async function createSmtpTransportForConfiguration(configuration: EmailRuntimeConfiguration): Promise<Transporter> {
+  if (configuration.host !== "smtp.office365.com") throw new Error("SMTP delivery requires the approved Microsoft endpoint.");
+  const auth = configuration.authMode === "oauth2"
     ? {
         type: "OAuth2" as const,
-        user: env.SMTP_USERNAME!,
-        accessToken: await getSmtpOAuthAccessToken(),
+        user: configuration.username!,
+        accessToken: await getSmtpOAuthAccessToken(configuration),
       }
-    : env.SMTP_AUTH_MODE === "password"
-      ? { user: env.SMTP_USERNAME!, pass: env.SMTP_PASSWORD! }
+    : configuration.authMode === "password"
+      ? { user: configuration.username!, pass: configuration.password! }
       : undefined;
 
   return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    requireTLS: !env.SMTP_SECURE,
+    host: configuration.host!,
+    port: configuration.port!,
+    secure: configuration.secure,
+    requireTLS: !configuration.secure,
     tls: { minVersion: "TLSv1.2", rejectUnauthorized: true },
     auth,
     disableFileAccess: true,

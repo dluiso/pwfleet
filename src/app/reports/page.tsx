@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Download, FileText, Mail } from "lucide-react";
 import { requirePermission } from "@/lib/auth";
-import { getEnvironment } from "@/lib/env";
+import { getRuntimeIntegrationModes } from "@/modules/integrations/settings";
 import { getFleetDashboard } from "@/modules/fleet/repository";
 import { getMaintenanceReportSnapshot, listInspectionReports } from "@/modules/reports/repository";
 import { getFleetReportOptions } from "@/modules/reports/fleet-report";
@@ -9,12 +9,12 @@ import { ReportBuilder } from "@/components/report-builder";
 
 export default async function ReportsPage() {
   const actor = await requirePermission("reports:read");
-  const env = getEnvironment();
-  const [dashboard, inspections, maintenance, reportOptions] = await Promise.all([
+  const [dashboard, inspections, maintenance, reportOptions, integrations] = await Promise.all([
     getFleetDashboard(),
     listInspectionReports(5),
     getMaintenanceReportSnapshot(),
     getFleetReportOptions(),
+    getRuntimeIntegrationModes(),
   ]);
 
   return (
@@ -23,7 +23,7 @@ export default async function ReportsPage() {
       <section className="report-options-grid">
         <article className="panel report-option"><span className="record-icon"><FileText size={19} /></span><div><strong>Inspection reports</strong><p>Download the signed system record for any submitted form.</p></div><Link className="button button-secondary button-small" href="/inspections"><Download size={15} /> Browse PDFs</Link></article>
         <article className="panel report-option"><span className="record-icon"><CalendarDays size={19} /></span><div><strong>Scheduled fleet summaries</strong><p>Daily, weekly, monthly, and annual subscriptions deliver controlled PDF or CSV reports to registered recipients.</p></div>{actor.role === "administrator" ? <Link className="button button-secondary button-small" href="/settings/reports">Manage schedules</Link> : <span className="policy-pill">Automated delivery</span>}</article>
-        <article className="panel report-option"><span className="record-icon"><Mail size={19} /></span><div><strong>Email delivery</strong><p>{env.EMAIL_MODE === "smtp" ? "The approved SMTP relay is configured for queued delivery with retry and dead-letter tracking." : "Messages are captured locally without external delivery until the approved mail integration is configured."}</p></div><span className="policy-pill">{env.EMAIL_MODE === "smtp" ? "SMTP delivery" : "Delivery pending"}</span></article>
+        <article className="panel report-option"><span className="record-icon"><Mail size={19} /></span><div><strong>Email delivery</strong><p>{integrations.emailMode === "smtp" ? "The approved SMTP relay is configured for queued delivery with retry and dead-letter tracking." : "Messages are captured locally without external delivery until the approved mail integration is configured."}</p></div><span className="policy-pill">{integrations.emailMode === "smtp" ? "SMTP delivery" : "Delivery pending"}</span></article>
       </section>
       <ReportBuilder canManageDelivery={actor.role === "administrator"} options={reportOptions} />
       <section className="panel report-snapshot">

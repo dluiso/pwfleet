@@ -934,6 +934,31 @@ export const requestRateLimits = pgTable(
   ],
 );
 
+export const integrationSettings = pgTable("integration_settings", {
+  id: integer("id").primaryKey().default(1),
+  authenticationMode: varchar("authentication_mode", { length: 20 }).notNull().default("local").$type<"local" | "oidc">(),
+  oidcIssuer: varchar("oidc_issuer", { length: 500 }),
+  oidcClientId: varchar("oidc_client_id", { length: 300 }),
+  oidcClientSecretCiphertext: text("oidc_client_secret_ciphertext"),
+  oidcClientAuthMethod: varchar("oidc_client_auth_method", { length: 40 }).notNull().default("client_secret_basic").$type<"client_secret_basic" | "client_secret_post">(),
+  oidcScopes: varchar("oidc_scopes", { length: 500 }).notNull().default("openid profile email"),
+  oidcClockToleranceSeconds: integer("oidc_clock_tolerance_seconds").notNull().default(30),
+  emailMode: varchar("email_mode", { length: 20 }).notNull().default("capture").$type<"capture" | "smtp">(),
+  smtpHost: varchar("smtp_host", { length: 255 }),
+  smtpPort: integer("smtp_port"),
+  smtpSecure: boolean("smtp_secure").notNull().default(false),
+  smtpAuthMode: varchar("smtp_auth_mode", { length: 20 }).notNull().default("none").$type<"none" | "password" | "oauth2">(),
+  smtpUsername: varchar("smtp_username", { length: 320 }),
+  smtpPasswordCiphertext: text("smtp_password_ciphertext"),
+  smtpOauthTenantId: varchar("smtp_oauth_tenant_id", { length: 200 }),
+  smtpOauthClientId: varchar("smtp_oauth_client_id", { length: 300 }),
+  smtpOauthClientSecretCiphertext: text("smtp_oauth_client_secret_ciphertext"),
+  emailFrom: varchar("email_from", { length: 500 }),
+  recordVersion: integer("record_version").notNull().default(1),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+});
+
 export type User = typeof users.$inferSelect;
 export type Vehicle = typeof vehicles.$inferSelect;
 export type VehicleClass = typeof vehicleClasses.$inferSelect;
@@ -941,3 +966,4 @@ export type InspectionTemplate = typeof inspectionTemplates.$inferSelect;
 export type InspectionItem = typeof inspectionItems.$inferSelect;
 export type InspectionItemRule = typeof inspectionItemRules.$inferSelect;
 export type SafetyCase = typeof safetyCases.$inferSelect;
+export type IntegrationSettings = typeof integrationSettings.$inferSelect;

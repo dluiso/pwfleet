@@ -6,6 +6,7 @@ import { getEnvironment } from "@/lib/env";
 import { hasSameOrigin, sameOriginError } from "@/lib/http-security";
 import { discoverOidc } from "@/lib/oidc";
 import { readSessionToken, sessionCookieName, sessionCookieOptions } from "@/lib/session";
+import { getRuntimeAuthenticationConfiguration } from "@/modules/integrations/settings";
 
 export async function POST(request: NextRequest) {
   if (!hasSameOrigin(request)) return sameOriginError();
@@ -19,12 +20,13 @@ export async function POST(request: NextRequest) {
   }
   if (session) await db.update(authSessions).set({ revokedAt: new Date() }).where(eq(authSessions.id, session.sessionId));
   let target = new URL("/auth/login", env.APP_BASE_URL);
-  if (env.AUTH_MODE === "oidc") {
+  const authentication = env.AUTH_MODE === "development" ? null : await getRuntimeAuthenticationConfiguration();
+  if (authentication?.mode === "oidc") {
     try {
-      const discovery = await discoverOidc();
+      const discovery = await discoverOidc(authentication);
       if (discovery.end_session_endpoint) {
         target = new URL(discovery.end_session_endpoint);
-        target.searchParams.set("client_id", env.OIDC_CLIENT_ID!);
+        target.searchParams.set("client_id", authentication.clientId!);
         target.searchParams.set("post_logout_redirect_uri", new URL("/auth/login", env.APP_BASE_URL).toString());
       }
     } catch {

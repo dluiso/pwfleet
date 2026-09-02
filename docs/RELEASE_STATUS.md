@@ -6,10 +6,10 @@ Status date: 2026-09-02
 
 The repository is complete as a local Linux production release candidate. Current observed evidence:
 
-- lint, TypeScript, 41 unit tests, and optimized Next.js build pass locally; the prior 37-test release also passed on the Ubuntu target;
+- lint, TypeScript, 43 unit tests, and optimized Next.js build pass locally; the preceding 39-test release passed on the Ubuntu target;
 - configurable form-family creation, empty-draft rendering, and protected unused-draft deletion passed a local API/database lifecycle check with exact QA cleanup;
 - dependency audit reports no known vulnerability;
-- all 18 checksum-locked migrations are applied in the local upgrade database;
+- all 20 checksum-locked migrations are represented in the release;
 - critical safety-case, report-delivery, vehicle-dossier, notification, and retention QA cycles pass with cleanup;
 - all 15 findings from standard security scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused remediation verification;
 - app and worker images build from the current checkout, and native Ubuntu service definitions are provided;
@@ -20,9 +20,9 @@ The repository is complete as a local Linux production release candidate. Curren
 
 Responsive Chrome inspection confirmed the desktop dashboard, mobile navigation, QR-to-vehicle routing, blocked-vehicle messaging, and both source-form variants. It also led to corrections for blocked inspection launch and stale report-delivery copy. During the final automation session Chrome displayed the server-rendered pages but did not execute the Next.js client bootstrap, so interactive client controls must be observed again in the target browser/UAT environment; CSP was not weakened to bypass this condition.
 
-The Ubuntu 24.04 target is prepared natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. All 18 migrations are applied to the least-privilege `pwfleet` database, the initial administrator authorization record exists, and production contains only the two supplied form families, two vehicle classes, 10 sections, and 63 fields; it contains no sample vehicles or users. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
+The Ubuntu 24.04 target is deployed natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. The application and worker timer are enabled and active. Production contains only the two supplied form families, two vehicle classes, 10 sections, and 63 fields; it contains no sample vehicles or users. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
 
-No Azure, Microsoft Entra ID, Exchange Online, or Microsoft 365 setting was changed. A secure transitional local-authentication mode and non-delivery email capture mode are now available so the application can operate before those integrations are completed. Target deployment and public login acceptance remain to be observed.
+No Azure, Microsoft Entra ID, Exchange Online, or Microsoft 365 setting was changed. Secure local authentication and non-delivery email capture are active, and public HTTPS login was observed successfully through the existing Cloudflare route. The next release adds protected in-application configuration for Microsoft and SMTP, with write-only encrypted secrets and provider validation before activation.
 
 ## Production go-live status
 

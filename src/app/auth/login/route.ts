@@ -10,6 +10,7 @@ import { buildAuthorizationUrl, createAuthorizationTransaction } from "@/lib/oid
 import { hashLocalPassword, verifyLocalPassword } from "@/lib/password";
 import { enforceCredentialRateLimit, enforceRateLimit } from "@/lib/rate-limit";
 import { createOidcTransactionToken, createSessionToken, sanitizeReturnTo, sessionCookieName, sessionCookieOptions, transactionCookieName, transactionCookieOptions } from "@/lib/session";
+import { getRuntimeAuthenticationConfiguration } from "@/modules/integrations/settings";
 
 const loginSchema = z.object({
   email: z.email().trim().toLowerCase().max(320),
@@ -72,14 +73,15 @@ function loginPage(input: { returnTo: string; email?: string; error?: string }, 
 
 export async function GET(request: Request) {
   const env = getEnvironment();
+  const authentication = env.AUTH_MODE === "development" ? null : await getRuntimeAuthenticationConfiguration();
   const returnTo = sanitizeReturnTo(new URL(request.url).searchParams.get("returnTo"));
   if (env.AUTH_MODE === "development") return NextResponse.redirect(new URL(returnTo, env.APP_BASE_URL));
-  if (env.AUTH_MODE === "local") return loginPage({ returnTo });
+  if (authentication!.mode === "local") return loginPage({ returnTo });
   try {
     const rateLimit = await enforceRateLimit(request, "auth.login", 20, 900);
     if (!rateLimit.allowed) return new Response("Too many sign-in attempts. Wait before trying again.", { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(rateLimit.retryAfterSeconds) } });
     const transaction = createAuthorizationTransaction();
-    const response = NextResponse.redirect(await buildAuthorizationUrl(transaction));
+    const response = NextResponse.redirect(await buildAuthorizationUrl(transaction, authentication!));
     response.cookies.set(transactionCookieName(), await createOidcTransactionToken({
       state: transaction.state,
       nonce: transaction.nonce,
@@ -95,7 +97,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const env = getEnvironment();
-  if (env.AUTH_MODE !== "local") return new Response("Local password authentication is unavailable.", { status: 404, headers: { "Cache-Control": "no-store" } });
+  const authentication = env.AUTH_MODE === "development" ? null : await getRuntimeAuthenticationConfiguration();
+  if (env.AUTH_MODE === "development" || authentication!.mode !== "local") return new Response("Local password authentication is unavailable.", { status: 404, headers: { "Cache-Control": "no-store" } });
   if (!hasSameOrigin(request)) return sameOriginError();
 
   let submitted: z.infer<typeof loginSchema> | undefined;

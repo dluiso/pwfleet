@@ -6,7 +6,8 @@ import type { Transporter } from "nodemailer";
 import { db, pool } from "@/db/client";
 import { notificationOutbox, reportArtifacts, reportDeliveries } from "@/db/schema";
 import { getEnvironment } from "@/lib/env";
-import { buildInspectionEmail, createSmtpTransport } from "./email";
+import { buildInspectionEmail, createSmtpTransportForConfiguration } from "./email";
+import { getRuntimeEmailConfiguration, type EmailRuntimeConfiguration } from "@/modules/integrations/settings";
 
 const workerLockKey = 1_938_220_419;
 
@@ -20,6 +21,7 @@ function safeFailureCode(error: unknown): string {
 async function deliverOne(
   item: typeof notificationOutbox.$inferSelect,
   transporter: Transporter | null,
+  email: EmailRuntimeConfiguration,
 ) {
   const env = getEnvironment();
   async function updateReportDelivery(status: "captured" | "sent" | "failed" | "dead_letter", lastError: string | null, sentAt: Date | null) {
@@ -60,7 +62,7 @@ async function deliverOne(
     }
   }
 
-  if (env.EMAIL_MODE === "capture") {
+  if (email.mode === "capture") {
     const sentAt = new Date();
     await db
       .update(notificationOutbox)
@@ -76,13 +78,13 @@ async function deliverOne(
     return "captured" as const;
   }
 
-  if (!transporter || !env.EMAIL_FROM) {
+  if (!transporter || !email.from) {
     throw new Error("SMTP transport is unavailable despite SMTP mode.");
   }
 
   try {
     await transporter.sendMail({
-      from: env.EMAIL_FROM,
+      from: email.from,
       to: item.recipientEmail,
       subject: content.subject,
       text: content.text,
@@ -126,10 +128,11 @@ export async function processPendingNotifications(limit = 50) {
       ))
       .orderBy(asc(notificationOutbox.createdAt))
       .limit(Math.min(Math.max(limit, 1), 250));
-    const transporter = await createSmtpTransport();
+    const email = await getRuntimeEmailConfiguration();
+    const transporter = email.mode === "smtp" ? await createSmtpTransportForConfiguration(email) : null;
 
     for (const item of pending) {
-      const status = await deliverOne(item, transporter);
+      const status = await deliverOne(item, transporter, email);
       result.processed += 1;
       result[status] += 1;
     }

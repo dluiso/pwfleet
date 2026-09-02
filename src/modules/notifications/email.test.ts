@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildInspectionEmail } from "./email";
+import { buildInspectionEmail, createSmtpTransportForConfiguration } from "./email";
 
 describe("inspection email", () => {
   beforeEach(() => {
@@ -74,5 +74,9 @@ describe("inspection email", () => {
     expect(email.text).toContain("approved this vehicle for operation");
     expect(email.text).toContain("Case status: Released");
     expect(email.html).toContain("Clean reinspection verified.");
+  });
+
+  it("rejects credential-bearing delivery to a non-Microsoft SMTP host", async () => {
+    await expect(createSmtpTransportForConfiguration({ mode: "smtp", host: "mail.attacker.invalid", port: 587, secure: false, authMode: "password", username: "fleet@example.gov", password: "stored-secret", oauthTenantId: null, oauthClientId: null, oauthClientSecret: null, from: "fleet@example.gov" })).rejects.toThrow(/approved Microsoft endpoint/);
   });
 });

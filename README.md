@@ -84,11 +84,11 @@ Production validation requires:
 
 - `APP_BASE_URL` using HTTPS;
 - `DATABASE_SSL_MODE=require` and an approved CA bundle mounted read-only into the containers;
-- `AUTH_MODE=local` with an independent high-entropy `AUTH_SECRET`, or `AUTH_MODE=oidc` with issuer, client ID, client secret, and `AUTH_SECRET`;
+- `AUTH_MODE=local` with an independent high-entropy `AUTH_SECRET`; Microsoft Entra is configured and activated later from the protected Administration screen;
 - no `DEV_ACTOR_EMAIL`;
 - trusted reverse-proxy client headers, with `TRUSTED_CLIENT_IP_HEADER` set to the single header overwritten by that proxy;
 - persistent file storage and `FILE_SCANNING_MODE=clamav` with a reachable scanner;
-- either non-delivery `EMAIL_MODE=capture`, or SMTP configuration with explicit unauthenticated relay, password, or OAuth2 client-credentials authentication. Native Microsoft 365 deployments use OAuth2.
+- `EMAIL_MODE=capture` as the fail-safe bootstrap mode; approved Microsoft SMTP OAuth2 delivery is configured, validated, and activated later from Administration.
 
 Values prefixed with `NEXT_PUBLIC_` are intentionally avoided for secrets because those values are embedded in browser JavaScript at build time.
 
@@ -113,7 +113,7 @@ sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 
 The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create sample vehicles, drivers, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist.
 
-Production supports two authentication modes. `local` provides a temporary, database-backed sign-in with scrypt password hashing, encrypted cookies, server-side session revocation, and database rate limits. The initial password is read only from standard input by `pnpm db:bootstrap-local-password`; it must never be placed in an environment file or command argument. `oidc` replaces the login entry point with Microsoft Entra while preserving users, roles, fleet records, and audit history. `EMAIL_MODE=capture` keeps notification work inside the application until SMTP is approved; it does not deliver messages externally.
+Production supports two runtime authentication modes. `local` provides a temporary, database-backed sign-in with scrypt password hashing, encrypted cookies, server-side session revocation, and database rate limits. The initial password is read only from standard input by `pnpm db:bootstrap-local-password`; it must never be placed in an environment file or command argument. An administrator can later open **Administration > Microsoft & email integrations** to enter the single-tenant issuer, client ID, write-only client secret, and administrator Object ID. Successful discovery validation activates Microsoft Entra and revokes existing sessions without a rebuild or deployment. The same screen keeps notifications in capture mode until the approved Microsoft SMTP configuration passes live verification. Provider secrets are encrypted with AES-256-GCM using the root-managed `AUTH_SECRET` and are never returned to the browser.
 
 Do not deploy until every environment-specific gate in the release checklist has observed evidence and explicit deployment approval has been given.
 
