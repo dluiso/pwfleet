@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { z } from "zod";
 import { getEnvironment } from "@/lib/env";
 import { formatDateTime, formatEnum } from "@/lib/format";
 
@@ -142,9 +143,45 @@ ${(documentExpiration ? [
   return { subject: input.subject, text, html, reportUrl };
 }
 
-export function createSmtpTransport(): Transporter | null {
+const oauthTokenSchema = z.object({
+  access_token: z.string().min(1),
+  token_type: z.literal("Bearer"),
+});
+
+async function getSmtpOAuthAccessToken() {
+  const env = getEnvironment();
+  const endpoint = new URL(
+    `/${encodeURIComponent(env.SMTP_OAUTH_TENANT_ID!)}/oauth2/v2.0/token`,
+    "https://login.microsoftonline.com",
+  );
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.SMTP_OAUTH_CLIENT_ID!,
+      client_secret: env.SMTP_OAUTH_CLIENT_SECRET!,
+      grant_type: "client_credentials",
+      scope: "https://outlook.office365.com/.default",
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error("SMTP OAuth2 token request failed.");
+  return oauthTokenSchema.parse(await response.json()).access_token;
+}
+
+export async function createSmtpTransport(): Promise<Transporter | null> {
   const env = getEnvironment();
   if (env.EMAIL_MODE !== "smtp") return null;
+
+  const auth = env.SMTP_AUTH_MODE === "oauth2"
+    ? {
+        type: "OAuth2" as const,
+        user: env.SMTP_USERNAME!,
+        accessToken: await getSmtpOAuthAccessToken(),
+      }
+    : env.SMTP_AUTH_MODE === "password"
+      ? { user: env.SMTP_USERNAME!, pass: env.SMTP_PASSWORD! }
+      : undefined;
 
   return nodemailer.createTransport({
     host: env.SMTP_HOST,
@@ -152,10 +189,7 @@ export function createSmtpTransport(): Transporter | null {
     secure: env.SMTP_SECURE,
     requireTLS: !env.SMTP_SECURE,
     tls: { minVersion: "TLSv1.2", rejectUnauthorized: true },
-    auth:
-      env.SMTP_USERNAME && env.SMTP_PASSWORD
-        ? { user: env.SMTP_USERNAME, pass: env.SMTP_PASSWORD }
-        : undefined,
+    auth,
     disableFileAccess: true,
     disableUrlAccess: true,
   });

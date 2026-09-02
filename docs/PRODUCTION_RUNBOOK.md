@@ -8,7 +8,7 @@ This runbook prepares Harvey PW Fleet for a Debian or Ubuntu host. It does not a
 - A dedicated HTTPS hostname and trusted TLS certificate.
 - PostgreSQL 17 reachable over TLS. The supplied single-host topology keeps it on an internal-only Docker network with a dedicated persistent volume; use a dedicated application role and an encrypted backup policy owned by the organization.
 - An OpenID Connect confidential client. Register exactly `${APP_BASE_URL}/auth/callback` as a redirect URI and `${APP_BASE_URL}/auth/login` as an allowed post-logout redirect.
-- An approved SMTP relay and sender address.
+- An approved SMTP relay and sender address. Microsoft 365 deployments should use the OAuth2 client-credentials mode documented in `MICROSOFT_MANUAL_CONFIGURATION.md`, with a mail-only application and mailbox-scoped Exchange permissions.
 - Disk or volume capacity for controlled vehicle documents, inspection evidence, and report artifacts.
 - Named owners for application administration, identity, database, backups, SMTP, TLS, and incident response.
 

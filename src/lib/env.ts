@@ -46,8 +46,12 @@ const envSchema = z
     SMTP_SECURE: z
       .enum(["true", "false"])
       .transform((value) => value === "true"),
+    SMTP_AUTH_MODE: z.enum(["none", "password", "oauth2"]).default("none"),
     SMTP_USERNAME: optionalString,
     SMTP_PASSWORD: optionalString,
+    SMTP_OAUTH_TENANT_ID: optionalString,
+    SMTP_OAUTH_CLIENT_ID: optionalString,
+    SMTP_OAUTH_CLIENT_SECRET: optionalString,
     EMAIL_FROM: optionalString,
     FILE_STORAGE_ROOT: z.string().min(1),
     UPLOAD_MAX_BYTES: z.coerce.number().int().min(1024).max(25 * 1024 * 1024),
@@ -147,8 +151,24 @@ const envSchema = z
           });
         }
       }
-      if (Boolean(env.SMTP_USERNAME) !== Boolean(env.SMTP_PASSWORD)) {
-        context.addIssue({ code: "custom", path: ["SMTP_USERNAME"], message: "SMTP username and password must either both be provided or both be omitted for an approved relay." });
+      if (env.SMTP_AUTH_MODE === "none") {
+        for (const key of ["SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_OAUTH_TENANT_ID", "SMTP_OAUTH_CLIENT_ID", "SMTP_OAUTH_CLIENT_SECRET"] as const) {
+          if (env[key]) context.addIssue({ code: "custom", path: [key], message: `${key} must be empty for an unauthenticated approved relay.` });
+        }
+      }
+      if (env.SMTP_AUTH_MODE === "password") {
+        for (const key of ["SMTP_USERNAME", "SMTP_PASSWORD"] as const) {
+          if (!env[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required for SMTP password authentication.` });
+        }
+        for (const key of ["SMTP_OAUTH_TENANT_ID", "SMTP_OAUTH_CLIENT_ID", "SMTP_OAUTH_CLIENT_SECRET"] as const) {
+          if (env[key]) context.addIssue({ code: "custom", path: [key], message: `${key} must be empty for SMTP password authentication.` });
+        }
+      }
+      if (env.SMTP_AUTH_MODE === "oauth2") {
+        for (const key of ["SMTP_USERNAME", "SMTP_OAUTH_TENANT_ID", "SMTP_OAUTH_CLIENT_ID", "SMTP_OAUTH_CLIENT_SECRET"] as const) {
+          if (!env[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required for SMTP OAuth2 authentication.` });
+        }
+        if (env.SMTP_PASSWORD) context.addIssue({ code: "custom", path: ["SMTP_PASSWORD"], message: "SMTP_PASSWORD must be empty for SMTP OAuth2 authentication." });
       }
     }
     if (env.FILE_SCANNING_MODE === "clamav") {

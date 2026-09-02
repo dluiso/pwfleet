@@ -34,7 +34,7 @@ try {
   if (unsafeAssignment) throw new Error("Every active vehicle form assignment must use an approved rule set.");
   const discovery = await discoverOidc();
   const malware = await checkMalwareScanner();
-  const smtp = createSmtpTransport();
+  const smtp = await createSmtpTransport();
   if (!smtp) throw new Error("SMTP transport is required in production.");
   await smtp.verify();
   smtp.close();

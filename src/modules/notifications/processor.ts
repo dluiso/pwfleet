@@ -126,7 +126,7 @@ export async function processPendingNotifications(limit = 50) {
       ))
       .orderBy(asc(notificationOutbox.createdAt))
       .limit(Math.min(Math.max(limit, 1), 250));
-    const transporter = createSmtpTransport();
+    const transporter = await createSmtpTransport();
 
     for (const item of pending) {
       const status = await deliverOne(item, transporter);

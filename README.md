@@ -88,7 +88,7 @@ Production validation currently requires:
 - no `DEV_ACTOR_EMAIL`;
 - trusted reverse-proxy client headers;
 - persistent file storage and `FILE_SCANNING_MODE=clamav` with a reachable scanner;
-- SMTP configuration with `EMAIL_MODE=smtp`.
+- SMTP configuration with `EMAIL_MODE=smtp` and explicit unauthenticated relay, password, or OAuth2 client-credentials authentication. Native Microsoft 365 deployments use OAuth2.
 
 Values prefixed with `NEXT_PUBLIC_` are intentionally avoided for secrets because those values are embedded in browser JavaScript at build time.
 

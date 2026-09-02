@@ -113,7 +113,10 @@ export async function verifyIdToken(idToken: string, expectedNonce: string): Pro
 export function identityFromClaims(payload: JWTPayload): { subject: string; email: string | null; displayName: string; emailVerified: boolean } {
   const emailClaim = payload.email;
   if (!payload.sub) throw new Error("The OIDC identity does not contain a usable subject.");
+  const objectId = typeof payload.oid === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.oid)
+    ? payload.oid.toLowerCase()
+    : null;
   const email = typeof emailClaim === "string" && emailClaim.includes("@") ? emailClaim.trim().toLowerCase().slice(0, 320) : null;
   const displayName = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim().slice(0, 160) : email?.split("@")[0] ?? "Authorized user";
-  return { subject: payload.sub, email, displayName, emailVerified: Boolean(email && payload.email_verified === true) };
+  return { subject: objectId ?? payload.sub, email, displayName, emailVerified: Boolean(email && payload.email_verified === true) };
 }

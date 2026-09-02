@@ -11,4 +11,11 @@ describe("OIDC identity claims", () => {
     expect(identityFromClaims({ sub: "subject", preferred_username: "user@example.gov" })).toMatchObject({ email: null, emailVerified: false });
     expect(identityFromClaims({ sub: "subject", upn: "user@example.gov" })).toMatchObject({ email: null, emailVerified: false });
   });
+
+  it("uses the immutable Entra object ID when it is present", () => {
+    expect(identityFromClaims({
+      sub: "application-specific-subject",
+      oid: "A62D607B-033D-4B96-9D66-3015BD250F45",
+    }).subject).toBe("a62d607b-033d-4b96-9d66-3015bd250f45");
+  });
 });
