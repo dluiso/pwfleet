@@ -36,6 +36,11 @@ restore_previous_service() {
 trap restore_previous_service EXIT
 
 pnpm build
+install -d .next/standalone/.next/static
+cp -a .next/static/. .next/standalone/.next/static/
+if [[ -d public ]]; then
+  cp -a public .next/standalone/
+fi
 
 install -o root -g root -m 0644 deploy/native/pwfleet.service /etc/systemd/system/pwfleet.service
 install -o root -g root -m 0644 deploy/native/pwfleet-worker.service /etc/systemd/system/pwfleet-worker.service

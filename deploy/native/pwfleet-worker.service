@@ -11,7 +11,7 @@ Group=pwfleet
 WorkingDirectory=/opt/pwfleet
 EnvironmentFile=/etc/pwfleet/app.env
 Environment=NODE_ENV=production
-ExecStart=/usr/local/bin/pnpm notifications:process
+ExecStart=/opt/pwfleet/node_modules/.bin/tsx /opt/pwfleet/src/workers/process-notifications.ts
 UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true
