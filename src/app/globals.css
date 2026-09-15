@@ -514,6 +514,8 @@ textarea.field-control { resize: vertical; }
 .table-actions { display: flex; justify-content: flex-end; gap: 5px; }
 .table-actions button { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: #52615d; background: white; cursor: pointer; }
 .table-actions button:hover { color: var(--green); border-color: #b9d4c8; background: #f4faf7; }
+.table-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.table-actions button:disabled:hover { color: #52615d; border-color: var(--line); background: white; }
 .role-chip { width: fit-content; display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 999px; color: #315c7b; background: var(--blue-soft); font-size: 8px; font-weight: 750; }
 .status-dot-label { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700; }
 .status-dot-label::before { width: 7px; height: 7px; content: ""; border-radius: 50%; background: var(--subtle); }
@@ -531,6 +533,7 @@ textarea.field-control { resize: vertical; }
 .admin-form-grid input, .admin-form-grid select, .admin-form-grid textarea, .danger-zone input, .danger-zone textarea { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #d7dfdc; border-radius: 8px; outline: 0; color: var(--ink); background: white; font-size: 10px; }
 .admin-form-grid input:focus, .admin-form-grid select:focus, .admin-form-grid textarea:focus, .danger-zone input:focus, .danger-zone textarea:focus { border-color: #86bca7; box-shadow: 0 0 0 3px rgb(24 131 95 / 8%); }
 .admin-form-wide { grid-column: 1 / -1; }
+.admin-form-hint { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
 .checkbox-field { min-height: 40px; display: flex; align-items: center; gap: 8px; padding-top: 18px; }
 .checkbox-field input { width: 17px; min-height: 17px; accent-color: var(--green); }
 .checkbox-field > span { margin: 0 !important; }

@@ -5,6 +5,7 @@ import { and, asc, count, desc, eq, inArray, isNull, lte, max, ne, or, sql } fro
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
+  authSessions,
   auditEvents,
   inspectionItemRules,
   inspectionItems,
@@ -19,16 +20,20 @@ import {
   vehicles,
 } from "@/db/schema";
 import { AuthorizationError, can, getCurrentActor, requirePermission } from "@/lib/auth";
+import { hashLocalPassword, verifyLocalPassword } from "@/lib/password";
+import { getRuntimeIntegrationModes } from "@/modules/integrations/settings";
 import {
   assignmentInputSchema,
   createTemplateInputSchema,
   createTemplateVersionInputSchema,
   deleteDraftTemplateInputSchema,
+  deleteUserSchema,
   draftTemplateDefinitionSchema,
   endAssignmentInputSchema,
   rotateQrInputSchema,
   publishableTemplateDefinitionSchema,
   resetIdentityBindingSchema,
+  resetLocalPasswordSchema,
   templateWorkflowInputSchema,
   userInputSchema,
   userUpdateSchema,
@@ -59,8 +64,24 @@ function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   return parsed.data;
 }
 
+function hasDatabaseErrorCode(error: unknown, code: string): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  if ("code" in error && error.code === code) return true;
+  return "cause" in error && hasDatabaseErrorCode(error.cause, code);
+}
+
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+  return hasDatabaseErrorCode(error, "23505");
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return hasDatabaseErrorCode(error, "23503");
+}
+
+function assertUserRoleAuthority(actor: typeof users.$inferSelect, role: typeof users.$inferSelect.role) {
+  if (actor.role === "administrator") return;
+  if (actor.role === "fleet_manager" && role !== "administrator" && role !== "fleet_manager") return;
+  throw new AdministrationError("Fleet managers cannot manage administrator or fleet manager accounts.", 403);
 }
 
 async function requireFormGovernanceAccess() {
@@ -113,7 +134,7 @@ export async function listAdministrationVehicles() {
 }
 
 export async function listAdministrationUsers() {
-  await requirePermission("configuration:manage");
+  await requirePermission("users:manage");
   return db
     .select({
       id: users.id,
@@ -125,15 +146,19 @@ export async function listAdministrationUsers() {
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       identityBound: sql<boolean>`${users.oidcSubject} is not null`,
+      passwordSet: sql<boolean>`${users.localPasswordHash} is not null`,
     })
     .from(users)
     .orderBy(asc(users.displayName));
 }
 
 export async function resetUserIdentityBinding(userId: string, rawInput: unknown) {
-  const actor = await requirePermission("configuration:manage");
+  const actor = await requirePermission("users:manage");
   const input = parseOrThrow(resetIdentityBindingSchema, rawInput);
   if (actor.id === userId) throw new AdministrationError("You cannot reset your own active identity binding.", 409);
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) throw new AdministrationError("User not found.", 404);
+  assertUserRoleAuthority(actor, target.role);
   const [updated] = await db
     .update(users)
     .set({ oidcIssuer: null, oidcSubject: null, identityBoundAt: null, recordVersion: sql`${users.recordVersion} + 1`, updatedAt: new Date() })
@@ -145,7 +170,7 @@ export async function resetUserIdentityBinding(userId: string, rawInput: unknown
 }
 
 export async function getAdministrationReferences() {
-  await requirePermission("configuration:manage");
+  await requirePermission("forms:assign");
   const [classes, templates] = await Promise.all([
     db
       .select({ id: vehicleClasses.id, code: vehicleClasses.code, name: vehicleClasses.name })
@@ -161,14 +186,14 @@ export async function getAdministrationReferences() {
         ruleSetStatus: inspectionTemplates.ruleSetStatus,
       })
       .from(inspectionTemplates)
-      .where(eq(inspectionTemplates.status, "published"))
+      .where(and(eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved")))
       .orderBy(asc(inspectionTemplates.name)),
   ]);
   return { classes, templates };
 }
 
 export async function listAdministrationAssignments() {
-  await requirePermission("configuration:manage");
+  await requirePermission("forms:assign");
   return db
     .select({
       id: vehicleInspectionAssignments.id,
@@ -1041,7 +1066,7 @@ export async function rotateVehicleQr(vehicleId: string, rawInput: unknown) {
 }
 
 export async function assignInspectionTemplate(vehicleId: string, rawInput: unknown) {
-  const actor = await requirePermission("configuration:manage");
+  const actor = await requirePermission("forms:assign");
   const input = parseOrThrow(assignmentInputSchema, rawInput);
   const today = new Date().toISOString().slice(0, 10);
   const [vehicle, template, duplicate] = await Promise.all([
@@ -1082,7 +1107,7 @@ export async function assignInspectionTemplate(vehicleId: string, rawInput: unkn
 }
 
 export async function endInspectionAssignment(assignmentId: string, rawInput: unknown) {
-  const actor = await requirePermission("configuration:manage");
+  const actor = await requirePermission("forms:assign");
   parseOrThrow(endAssignmentInputSchema, rawInput);
   const today = new Date().toISOString().slice(0, 10);
   const [ended] = await db
@@ -1113,10 +1138,26 @@ export async function endInspectionAssignment(assignmentId: string, rawInput: un
 }
 
 export async function createUser(rawInput: unknown) {
-  const actor = await requirePermission("configuration:manage");
+  const actor = await requirePermission("users:manage");
   const input = parseOrThrow(userInputSchema, rawInput);
+  assertUserRoleAuthority(actor, input.role);
+  const { authenticationMode } = await getRuntimeIntegrationModes();
+  if (authenticationMode === "local" && !input.password) {
+    throw new AdministrationError("A password is required while local authentication is active.", 400);
+  }
+  if (authenticationMode === "oidc" && input.password) {
+    throw new AdministrationError("Passwords are not stored while Microsoft Entra authentication is active.", 400);
+  }
+  const passwordHash = input.password ? await hashLocalPassword(input.password) : null;
   try {
-    const [created] = await db.insert(users).values(input).returning({ id: users.id });
+    const [created] = await db.insert(users).values({
+      email: input.email,
+      displayName: input.displayName,
+      role: input.role,
+      active: input.active,
+      localPasswordHash: passwordHash,
+      localPasswordChangedAt: passwordHash ? new Date() : null,
+    }).returning({ id: users.id });
     await db.insert(auditEvents).values({
       actorUserId: actor.id,
       eventType: "user.created",
@@ -1132,16 +1173,17 @@ export async function createUser(rawInput: unknown) {
 }
 
 export async function updateUser(id: string, rawInput: unknown) {
-  const actor = await getCurrentActor();
-  await requirePermission("configuration:manage");
+  const actor = await requirePermission("users:manage");
   const input = parseOrThrow(userUpdateSchema, rawInput);
   try {
     return await db.transaction(async (transaction) => {
       await transaction.execute(sql`select pg_advisory_xact_lock(93284117)`);
       const [target] = await transaction.select().from(users).where(eq(users.id, id)).for("update").limit(1);
       if (!target) throw new AdministrationError("User not found.", 404);
+      assertUserRoleAuthority(actor, target.role);
+      assertUserRoleAuthority(actor, input.role);
       if (target.id === actor.id && (!input.active || input.role !== target.role || input.email.toLowerCase() !== target.email.toLowerCase())) {
-        throw new AdministrationError("You cannot deactivate, change the role, or change the email of your own administrative identity.", 409);
+        throw new AdministrationError("You cannot deactivate, change the role, or change the email of the identity currently in use.", 409);
       }
       if (target.role === "administrator" && target.active && (!input.active || input.role !== "administrator")) {
         const [administratorCount] = await transaction
@@ -1167,6 +1209,84 @@ export async function updateUser(id: string, rawInput: unknown) {
     });
   } catch (error) {
     if (isUniqueViolation(error)) throw new AdministrationError("That email address is already registered.", 409);
+    throw error;
+  }
+}
+
+export async function resetLocalUserPassword(id: string, rawInput: unknown) {
+  const actor = await getCurrentActor();
+  if (actor.id !== id && !can(actor, "users:manage")) throw new AuthorizationError("users:manage");
+  const input = parseOrThrow(resetLocalPasswordSchema, rawInput);
+  const { authenticationMode } = await getRuntimeIntegrationModes();
+  if (authenticationMode !== "local") {
+    throw new AdministrationError("Local passwords cannot be changed while Microsoft Entra authentication is active.", 409);
+  }
+  const passwordHash = await hashLocalPassword(input.password);
+  return db.transaction(async (transaction) => {
+    const [target] = await transaction.select().from(users).where(eq(users.id, id)).for("update").limit(1);
+    if (!target) throw new AdministrationError("User not found.", 404);
+    if (actor.id === id) {
+      if (!target.localPasswordHash || !input.currentPassword || !await verifyLocalPassword(input.currentPassword, target.localPasswordHash)) {
+        throw new AdministrationError("The current password is incorrect.", 400);
+      }
+    } else {
+      assertUserRoleAuthority(actor, target.role);
+    }
+    const [updated] = await transaction
+      .update(users)
+      .set({ localPasswordHash: passwordHash, localPasswordChangedAt: new Date(), recordVersion: target.recordVersion + 1, updatedAt: new Date() })
+      .where(and(eq(users.id, id), eq(users.recordVersion, input.recordVersion)))
+      .returning({ id: users.id });
+    if (!updated) throw new AdministrationError("This user changed in another session. Refresh and try again.", 409);
+    await transaction.update(authSessions).set({ revokedAt: new Date() }).where(and(eq(authSessions.userId, id), isNull(authSessions.revokedAt)));
+    await transaction.insert(auditEvents).values({
+      actorUserId: actor.id,
+      eventType: "authentication.local_password_reset",
+      entityType: "user",
+      entityId: id,
+      metadata: { sessionsRevoked: true, selfService: actor.id === id },
+    });
+    return { id };
+  });
+}
+
+export async function deleteUser(id: string, rawInput: unknown) {
+  const actor = await requirePermission("users:manage");
+  const input = parseOrThrow(deleteUserSchema, rawInput);
+  if (actor.id === id) throw new AdministrationError("You cannot delete your own administrative identity.", 409);
+  try {
+    return await db.transaction(async (transaction) => {
+      await transaction.execute(sql`select pg_advisory_xact_lock(93284117)`);
+      const [target] = await transaction.select().from(users).where(eq(users.id, id)).for("update").limit(1);
+      if (!target) throw new AdministrationError("User not found.", 404);
+      assertUserRoleAuthority(actor, target.role);
+      if (target.email.toLowerCase() !== input.confirmationEmail) {
+        throw new AdministrationError("The confirmation email does not match this user.", 400);
+      }
+      if (target.recordVersion !== input.recordVersion) {
+        throw new AdministrationError("This user changed in another session. Refresh and try again.", 409);
+      }
+      if (target.role === "administrator" && target.active) {
+        const [administratorCount] = await transaction
+          .select({ count: count() })
+          .from(users)
+          .where(and(eq(users.role, "administrator"), eq(users.active, true), ne(users.id, id)));
+        if ((administratorCount?.count ?? 0) === 0) throw new AdministrationError("At least one active administrator must remain.", 409);
+      }
+      await transaction.delete(users).where(eq(users.id, id));
+      await transaction.insert(auditEvents).values({
+        actorUserId: actor.id,
+        eventType: "user.deleted",
+        entityType: "user",
+        entityId: id,
+        metadata: { email: target.email, role: target.role, reason: input.reason },
+      });
+      return { id, deleted: true as const };
+    });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new AdministrationError("This user has operational history and cannot be deleted. Deactivate the account to preserve the audit record.", 409);
+    }
     throw error;
   }
 }

@@ -7,6 +7,7 @@ import { listAdministrationTemplates } from "@/modules/administration/service";
 
 export default async function FormCatalogPage() {
   const [templates, actor] = await Promise.all([listAdministrationTemplates(), getCurrentActor()]);
+  const unavailableCount = templates.filter((template) => template.status === "published" && template.ruleSetStatus !== "approved").length;
   return (
     <div className="page-stack">
       <section className="page-heading-row">
@@ -17,10 +18,10 @@ export default async function FormCatalogPage() {
         </div>
         {actor.role === "administrator" ? <CreateInspectionFormButton /> : null}
       </section>
-      <article className="safety-callout safety-callout-wide">
+      {unavailableCount ? <article className="safety-callout safety-callout-wide">
         <ShieldAlert size={22} />
-        <div><strong>Draft safety rules</strong><p>The initial rules are intentionally fail-safe and must be reviewed and formally approved by Harvey Public Works before production.</p></div>
-      </article>
+        <div><strong>{unavailableCount} published {unavailableCount === 1 ? "version is" : "versions are"} not assignable</strong><p>These legacy versions contain draft safety rules. Open each version, create its successor draft, complete Operations and Governance review, then publish it. Only that approved successor can be assigned to vehicles.</p></div>
+      </article> : null}
       <section className="form-lifecycle-grid" aria-label="Form lifecycle">
         <article className="panel"><strong>1. Create</strong><span>Start an empty form family with its own permanent code.</span></article>
         <article className="panel"><strong>2. Build</strong><span>Add sections, fields, choices, conditional visibility, and exception rules.</span></article>
@@ -36,7 +37,7 @@ export default async function FormCatalogPage() {
               <div className="record-icon"><FileCog size={18} /></div>
               <div className="record-main"><strong>{template.name}</strong><span>{template.code} · Version {template.version} · {template.itemCount} fields</span></div>
               <span className={`workflow-status workflow-status-${template.status === "draft" ? template.reviewStatus : template.status}`}>{formatEnum(template.status === "draft" ? template.reviewStatus : template.status)}</span>
-              <span className={`severity-chip ${template.ruleSetStatus === "approved" ? "severity-minor" : "severity-critical"}`}>{formatEnum(template.ruleSetStatus)} rules</span>
+              <span className={`severity-chip ${template.status === "published" && template.ruleSetStatus === "approved" ? "severity-minor" : "severity-critical"}`}>{template.status === "published" && template.ruleSetStatus === "approved" ? "Assignable" : "Not assignable"}</span>
               <ArrowRight className="form-catalog-arrow" size={17} />
             </Link>
           ))}

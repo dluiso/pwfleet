@@ -12,6 +12,8 @@ export type Permission =
   | "inspection:submit"
   | "inspection:review"
   | "maintenance:manage"
+  | "forms:assign"
+  | "users:manage"
   | "configuration:manage"
   | "reports:read"
   | "audit:read";
@@ -30,6 +32,8 @@ const rolePermissions: Record<User["role"], ReadonlySet<Permission>> = {
     "inspection:submit",
     "inspection:review",
     "maintenance:manage",
+    "forms:assign",
+    "users:manage",
     "reports:read",
   ]),
   maintenance_technician: new Set([
@@ -43,6 +47,8 @@ const rolePermissions: Record<User["role"], ReadonlySet<Permission>> = {
     "inspection:submit",
     "inspection:review",
     "maintenance:manage",
+    "forms:assign",
+    "users:manage",
     "configuration:manage",
     "reports:read",
     "audit:read",

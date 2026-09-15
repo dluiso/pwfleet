@@ -1,6 +1,6 @@
 # Release Status
 
-Status date: 2026-09-02
+Status date: 2026-09-15
 
 ## Release candidate and native server preparation
 
@@ -15,10 +15,14 @@ The repository is complete as a local Linux production release candidate. Curren
 - the native Ubuntu web service runs the supported standalone artifact, and the scheduled worker executes directly under the restricted `pwfleet` account;
 - production configuration validation runs before migrations, and the full preflight runs before the application is made ready;
 - no embedded private key, common provider token, hardcoded credential assignment, or public secret variable was detected.
+- vehicle profiles now expose form assignment directly, and the assignment selector offers only published versions whose safety rules completed approval;
+- local user administration now supports password creation/reset with session revocation, accurate authentication-state messaging, manager-scoped role protections, and controlled deletion of accounts without operational history.
 
 Responsive Chrome inspection confirmed the desktop dashboard, mobile navigation, QR-to-vehicle routing, blocked-vehicle messaging, and both source-form variants. It also led to corrections for blocked inspection launch and stale report-delivery copy. During the final automation session Chrome displayed the server-rendered pages but did not execute the Next.js client bootstrap, so interactive client controls must be observed again in the target browser/UAT environment; CSP was not weakened to bypass this condition.
 
-The Ubuntu 24.04 target is deployed natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. The application and worker timer are enabled and active. Production contains only the two supplied form families, two vehicle classes, 10 sections, and 63 fields; it contains no sample vehicles or users. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
+The Ubuntu 24.04 target is deployed natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. The application and worker timer are enabled and active. The two supplied form families and vehicle classes remain the bootstrapped catalog; production now also contains administrator-created trial users and vehicles used for controlled acceptance. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
+
+The September 15 user-administration and vehicle-assignment usability changes are validated locally and require the normal native deployment command before they become active on the Ubuntu target.
 
 No Azure, Microsoft Entra ID, Exchange Online, Microsoft 365, or Cloudflare control-plane setting was changed. Secure local authentication and non-delivery email capture are active, and public HTTPS login was observed successfully through the existing Cloudflare route. Administrators can now configure and validate Microsoft authentication and Microsoft 365 SMTP from the application; provider secrets are write-only, encrypted at rest, and never returned to the browser.
 

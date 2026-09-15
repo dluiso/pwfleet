@@ -9,8 +9,8 @@ The repository is a locally verified production release candidate. It includes:
 - vehicle inventory with internal unit numbers and optional display codes such as `DT-03`;
 - one revocable, non-authenticating QR identifier per vehicle;
 - administrator workflows to create and update vehicles, automatically issue or replace QR labels, and preserve QR audit history;
-- user administration for all six application roles, with self-lockout and last-administrator protections;
-- published-form assignment and reversible assignment ending that preserves inspection history;
+- user administration for all six application roles, including local-password creation and reset, session revocation, controlled unused-account deletion, deactivation for identities with history, and self-lockout/last-administrator protections;
+- approved published-form assignment directly from vehicle profiles, clear readiness guidance, and reversible assignment ending that preserves inspection history;
 - form-definition review by section, field, exception rule, operational disposition, and blocking behavior;
 - immutable form version history with complete published-to-draft cloning as the foundation for the visual designer;
 - administrator creation of independent form families from an empty draft, plus a focused draft builder with section navigation, field canvas, property inspector, searchable fields, separate logic editing, responsive live preview, settings, and publication readiness;
@@ -114,6 +114,8 @@ sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create sample vehicles, drivers, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist.
 
 Production supports two runtime authentication modes. `local` provides a temporary, database-backed sign-in with scrypt password hashing, encrypted cookies, server-side session revocation, and database rate limits. The initial password is read only from standard input by `pnpm db:bootstrap-local-password`; it must never be placed in an environment file or command argument. An administrator can later open **Administration > Microsoft & email integrations** to enter the single-tenant issuer, client ID, write-only client secret, and administrator Object ID. Successful discovery validation activates Microsoft Entra and revokes existing sessions without a rebuild or deployment. The same screen keeps notifications in capture mode until the approved Microsoft SMTP configuration passes live verification. Provider secrets are encrypted with AES-256-GCM using the root-managed `AUTH_SECRET` and are never returned to the browser.
+
+While local authentication is active, administrators and fleet managers can create eligible operational users with an initial password and reset passwords without exposing stored hashes. A reset revokes all existing sessions for that user. Administrators can manage every role; fleet managers cannot create, modify, reset, or delete administrator or fleet-manager accounts. Permanent deletion is restricted to unused accounts; identities referenced by inspections or other operational records must be deactivated so their history remains attributable.
 
 Do not deploy until every environment-specific gate in the release checklist has observed evidence and explicit deployment approval has been given.
 

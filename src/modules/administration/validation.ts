@@ -87,7 +87,13 @@ export const retireVehicleDocumentSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 
-export const userInputSchema = z.object({
+export const localPasswordSchema = z.string().min(12).max(128)
+  .regex(/[a-z]/, "Include at least one lowercase letter.")
+  .regex(/[A-Z]/, "Include at least one uppercase letter.")
+  .regex(/[0-9]/, "Include at least one number.")
+  .regex(/[^a-zA-Z0-9]/, "Include at least one symbol.");
+
+const userCoreSchema = z.object({
   email: z.email().trim().toLowerCase().max(320),
   displayName: z.string().trim().min(2).max(160),
   role: z.enum([
@@ -101,7 +107,32 @@ export const userInputSchema = z.object({
   active: z.boolean().default(true),
 });
 
-export const userUpdateSchema = userInputSchema.extend({
+export const userInputSchema = userCoreSchema.extend({
+  password: localPasswordSchema.optional(),
+  passwordConfirmation: z.string().max(128).optional(),
+}).superRefine((user, context) => {
+  if (user.password !== user.passwordConfirmation) {
+    context.addIssue({ code: "custom", path: ["passwordConfirmation"], message: "The passwords do not match." });
+  }
+});
+
+export const userUpdateSchema = userCoreSchema.extend({
+  recordVersion: z.number().int().positive(),
+});
+
+export const resetLocalPasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128).optional(),
+  password: localPasswordSchema,
+  passwordConfirmation: z.string().max(128),
+  recordVersion: z.number().int().positive(),
+}).refine((input) => input.password === input.passwordConfirmation, {
+  path: ["passwordConfirmation"],
+  message: "The passwords do not match.",
+});
+
+export const deleteUserSchema = z.object({
+  confirmationEmail: z.email().trim().toLowerCase().max(320),
+  reason: z.string().trim().min(8).max(500),
   recordVersion: z.number().int().positive(),
 });
 

@@ -4,11 +4,13 @@ import {
   createTemplateVersionInputSchema,
   createTemplateInputSchema,
   deleteDraftTemplateInputSchema,
+  deleteUserSchema,
   draftRuleSchema,
   draftTemplateDefinitionSchema,
   publishableTemplateDefinitionSchema,
   endAssignmentInputSchema,
   rotateQrInputSchema,
+  resetLocalPasswordSchema,
   userInputSchema,
   vehicleInputSchema,
   vehicleUpdateSchema,
@@ -63,7 +65,12 @@ describe("administration validation", () => {
 
   it("validates user roles, assignments, and QR replacement reasons", () => {
     expect(userInputSchema.safeParse({ email: "driver@example.gov", displayName: "Driver One", role: "driver", active: true }).success).toBe(true);
+    expect(userInputSchema.safeParse({ email: "driver@example.gov", displayName: "Driver One", role: "driver", active: true, password: "LocalPassword1!", passwordConfirmation: "LocalPassword1!" }).success).toBe(true);
+    expect(userInputSchema.safeParse({ email: "driver@example.gov", displayName: "Driver One", role: "driver", active: true, password: "LocalPassword1!", passwordConfirmation: "different" }).success).toBe(false);
     expect(userInputSchema.safeParse({ email: "driver@example.gov", displayName: "Driver One", role: "owner", active: true }).success).toBe(false);
+    expect(resetLocalPasswordSchema.safeParse({ password: "Replacement1!", passwordConfirmation: "Replacement1!", recordVersion: 2 }).success).toBe(true);
+    expect(resetLocalPasswordSchema.safeParse({ password: "weak", passwordConfirmation: "weak", recordVersion: 2 }).success).toBe(false);
+    expect(deleteUserSchema.safeParse({ confirmationEmail: "driver@example.gov", reason: "Created in error", recordVersion: 1 }).success).toBe(true);
     expect(assignmentInputSchema.safeParse({ templateId: classId, frequency: "daily", autoLaunch: true }).success).toBe(true);
     expect(endAssignmentInputSchema.safeParse({ action: "end" }).success).toBe(true);
     expect(endAssignmentInputSchema.safeParse({ action: "delete" }).success).toBe(false);

@@ -17,7 +17,7 @@ import {
   vehicleQrCodes,
   vehicles,
 } from "@/db/schema";
-import { requirePermission } from "@/lib/auth";
+import { can, requirePermission } from "@/lib/auth";
 import { mayViewVehicleDocuments } from "./vehicle-documents";
 
 export async function getFleetDashboard() {
@@ -233,6 +233,7 @@ export async function getVehicleById(id: string) {
     documents,
     mayViewDocuments: mayViewVehicleDocuments(actor.role),
     mayManageDocuments: actor.role === "fleet_manager" || actor.role === "administrator",
+    mayManageForms: can(actor, "forms:assign"),
   };
 }
 

@@ -44,6 +44,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         </div>
         <StatusBadge value={vehicle.disposition} />
         <div className="hero-actions">
+          {vehicle.mayManageForms ? <Link className="button button-secondary" href={`/settings/vehicles?assign=${vehicle.id}`}><ClipboardCheck size={18} /> Manage forms</Link> : null}
           {vehicle.assignments[0] ? (
             <Link
               className="button button-primary"
@@ -81,7 +82,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
           {vehicle.mayViewDocuments ? <VehicleDossierDocuments vehicleId={vehicle.id} documents={vehicle.documents} mayManage={vehicle.mayManageDocuments} /> : null}
 
           <article className="panel detail-panel">
-            <div className="panel-header"><div><span className="eyebrow">INSPECTION PROGRAMS</span><h2>Assigned forms</h2></div></div>
+            <div className="panel-header"><div><span className="eyebrow">INSPECTION PROGRAMS</span><h2>Assigned forms</h2></div>{vehicle.mayManageForms ? <Link className="button button-secondary button-small" href={`/settings/vehicles?assign=${vehicle.id}`}>Manage assignments</Link> : null}</div>
             <div className="assignment-list">
               {vehicle.assignments.map((assignment) => (
                 <div className="assignment-row" key={assignment.id}>
@@ -91,6 +92,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                   <Link className="button button-secondary button-small" href={`/inspections/new?vehicleId=${vehicle.id}&templateId=${assignment.templateId}`}>Open</Link>
                 </div>
               ))}
+              {!vehicle.assignments.length ? <div className="inline-empty"><span>No inspection form assigned</span><p>Assign an approved published form before this vehicle can be inspected from its QR label.</p></div> : null}
             </div>
           </article>
 

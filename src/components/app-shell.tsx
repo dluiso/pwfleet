@@ -13,6 +13,7 @@ import {
   QrCode,
   Settings,
   Truck,
+  UsersRound,
   Wrench,
   X,
 } from "lucide-react";
@@ -95,6 +96,14 @@ export function AppShell({ actor, children, unreadNotificationCount, development
         </nav>
 
         <div className="sidebar-bottom">
+          {actor.role === "fleet_manager" ? <Link className="nav-link" href="/settings/vehicles" onClick={() => setMobileMenuOpen(false)}>
+            <Settings size={19} />
+            <span>Fleet administration</span>
+          </Link> : null}
+          {actor.role === "fleet_manager" ? <Link className="nav-link" href="/settings/users" onClick={() => setMobileMenuOpen(false)}>
+            <UsersRound size={19} />
+            <span>User administration</span>
+          </Link> : null}
           {actor.role === "administrator" ? <Link className="nav-link" href="/settings" onClick={() => setMobileMenuOpen(false)}>
             <Settings size={19} />
             <span>Administration</span>

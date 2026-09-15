@@ -5,7 +5,8 @@ import {
   listAdministrationVehicles,
 } from "@/modules/administration/service";
 
-export default async function VehicleAdministrationPage() {
+export default async function VehicleAdministrationPage({ searchParams }: { searchParams: Promise<{ assign?: string }> }) {
+  const { assign } = await searchParams;
   const [vehicles, references, assignments] = await Promise.all([
     listAdministrationVehicles(),
     getAdministrationReferences(),
@@ -17,6 +18,7 @@ export default async function VehicleAdministrationPage() {
       classes={references.classes}
       templates={references.templates}
       assignments={assignments}
+      initialAssignmentVehicleId={assign}
     />
   );
 }
