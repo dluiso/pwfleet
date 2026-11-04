@@ -13,8 +13,9 @@ import {
   LoaderCircle,
   ShieldAlert,
   TriangleAlert,
+  WifiOff,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { DamageMap, type DamageMarker } from "./damage-map";
 import { PhotoUpload, type UploadedPhoto } from "./photo-upload";
 import { visibilityConditionMatches, type VisibilityCondition } from "@/modules/inspections/visibility";
@@ -61,18 +62,34 @@ type InspectionResult = {
   driverMessages: string[];
 };
 
+function subscribeToConnectivity(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
 export function InspectionForm({
+  actorId,
   vehicle,
   template,
   qrCodeId,
 }: {
+  actorId: string;
   vehicle: { id: string; label: string; description: string; disposition: string; currentOdometer: number | null };
   template: { id: string; name: string; version: number; ruleSetStatus: string; sections: FormSection[]; rules: DefectRule[] };
   qrCodeId?: string;
 }) {
   const router = useRouter();
+  const draftKey = `pwfleet:inspection-draft:${actorId}:${vehicle.id}:${template.id}:${template.version}`;
   const [currentSection, setCurrentSection] = useState(0);
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const online = useSyncExternalStore(subscribeToConnectivity, () => window.navigator.onLine, () => true);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +104,39 @@ export function InspectionForm({
     () => new Map(template.sections.flatMap((candidate) => candidate.items).map((item) => [item.itemKey, item])),
     [template.sections],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const stored = window.sessionStorage.getItem(draftKey);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { answers?: Record<string, AnswerState>; currentSection?: number; savedAt?: string };
+          if (parsed.answers && typeof parsed.answers === "object") {
+            setAnswers(parsed.answers);
+            setCurrentSection(Math.max(0, Math.min(parsed.currentSection ?? 0, template.sections.length - 1)));
+            setDraftRestored(true);
+            if (parsed.savedAt) setDraftSavedAt(new Date(parsed.savedAt));
+          }
+        } catch {
+          window.sessionStorage.removeItem(draftKey);
+        }
+      }
+      setDraftLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [draftKey, template.sections.length]);
+
+  useEffect(() => {
+    if (!draftLoaded || result) return;
+    const savedAt = new Date();
+    try {
+      window.sessionStorage.setItem(draftKey, JSON.stringify({ answers, currentSection, savedAt: savedAt.toISOString() }));
+    } catch {
+      // The inspection remains usable when device storage is unavailable.
+    }
+  }, [answers, currentSection, draftKey, draftLoaded, result]);
 
   function responsesByItemKey() {
     const effective = new Map<string, unknown>();
@@ -144,6 +194,7 @@ export function InspectionForm({
   }
 
   async function submit() {
+    if (!online) return setError("This device is offline. Your draft remains in this tab; reconnect before submitting.");
     for (const candidate of template.sections) {
       const validationError = validateSection(candidate);
       if (validationError) {
@@ -185,6 +236,7 @@ export function InspectionForm({
       });
       const payload = (await response.json()) as InspectionResult & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "The inspection could not be submitted.");
+      window.sessionStorage.removeItem(draftKey);
       setResult(payload);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "The inspection could not be submitted.");
@@ -233,10 +285,11 @@ export function InspectionForm({
             </button>
           ))}
         </nav>
-        <div className="draft-policy-note"><TriangleAlert size={16} /><span>Safety rules are in draft and force supervisor review.</span></div>
+        {template.ruleSetStatus !== "approved" ? <div className="draft-policy-note"><TriangleAlert size={16} /><span>Safety rules are in draft and force supervisor review.</span></div> : null}
       </aside>
 
       <section className="inspection-content">
+        {!online ? <div className="connectivity-banner connectivity-banner-offline" role="status"><WifiOff size={17} /><div><strong>Offline</strong><span>Your answers are retained in this tab. Reconnect before uploading evidence or submitting.</span></div></div> : draftRestored ? <div className="connectivity-banner" role="status"><Check size={17} /><div><strong>Draft restored</strong><span>Recovered from this browser tab{draftSavedAt ? ` · saved ${draftSavedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : ""}.</span></div></div> : null}
         <header className="inspection-header">
           <div><span className="eyebrow">{template.name.toUpperCase()} · VERSION {template.version}</span><h1>{section.title}</h1>{section.description ? <p>{section.description}</p> : null}</div>
           <span className="section-count">{currentSection + 1} of {template.sections.length}</span>
@@ -268,7 +321,7 @@ export function InspectionForm({
           {currentSection < template.sections.length - 1 ? (
             <button className="button button-primary" type="button" onClick={nextSection}>Continue <ArrowRight size={17} /></button>
           ) : (
-            <button className="button button-primary" type="button" disabled={submitting || uploadingCount > 0} onClick={() => void submit()}>{submitting ? <LoaderCircle className="spin" size={17} /> : <ClipboardCheck size={17} />}{submitting ? "Submitting…" : "Submit inspection"}</button>
+            <button className="button button-primary" type="button" disabled={submitting || uploadingCount > 0 || !online} onClick={() => void submit()}>{submitting ? <LoaderCircle className="spin" size={17} /> : <ClipboardCheck size={17} />}{submitting ? "Submitting…" : online ? "Submit inspection" : "Reconnect to submit"}</button>
           )}
         </footer>
       </section>

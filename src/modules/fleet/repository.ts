@@ -158,7 +158,7 @@ export async function getVehicleById(id: string) {
 
   if (!rows[0]) return null;
 
-  const [assignments, openDefects, recentInspections, caseRows, workTotals, documents] = await Promise.all([
+  const [assignments, openDefects, recentInspections, caseRows, workTotals, documents, qrHistory] = await Promise.all([
     getVehicleAssignments(id),
     db.select().from(defects).where(and(eq(defects.vehicleId, id), sql`${defects.status} <> 'closed'`)).orderBy(desc(defects.createdAt)),
     db
@@ -221,6 +221,19 @@ export async function getVehicleById(id: string) {
           .where(and(eq(vehicleAttachments.vehicleId, id), isNull(vehicleAttachments.retiredAt)))
           .orderBy(desc(vehicleAttachments.isPrimary), desc(vehicleAttachments.createdAt))
       : Promise.resolve([]),
+    db
+      .select({
+        id: vehicleQrCodes.id,
+        publicId: vehicleQrCodes.publicId,
+        status: vehicleQrCodes.status,
+        activatedAt: vehicleQrCodes.activatedAt,
+        lastScannedAt: vehicleQrCodes.lastScannedAt,
+        revokedAt: vehicleQrCodes.revokedAt,
+        revokeReason: vehicleQrCodes.revokeReason,
+      })
+      .from(vehicleQrCodes)
+      .where(eq(vehicleQrCodes.vehicleId, id))
+      .orderBy(desc(vehicleQrCodes.activatedAt)),
   ]);
 
   const workByCase = new Map(workTotals.map((row) => [row.safetyCaseId, row]));
@@ -231,6 +244,7 @@ export async function getVehicleById(id: string) {
     recentInspections,
     safetyHistory: caseRows.map((item) => ({ ...item, ...(workByCase.get(item.id) ?? { totalCostCents: 0, totalLaborMinutes: 0 }) })),
     documents,
+    qrHistory,
     mayViewDocuments: mayViewVehicleDocuments(actor.role),
     mayManageDocuments: actor.role === "fleet_manager" || actor.role === "administrator",
     mayManageForms: can(actor, "forms:assign"),

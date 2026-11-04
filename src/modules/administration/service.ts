@@ -38,6 +38,9 @@ import {
   userInputSchema,
   userUpdateSchema,
   vehicleInputSchema,
+  vehicleImportSchema,
+  vehicleClassInputSchema,
+  vehicleClassUpdateSchema,
   vehicleUpdateSchema,
 } from "./validation";
 
@@ -133,6 +136,61 @@ export async function listAdministrationVehicles() {
     .orderBy(asc(vehicles.unitNumber));
 }
 
+export async function listAdministrationVehicleClasses() {
+  await requirePermission("fleet:write");
+  return db
+    .select({
+      id: vehicleClasses.id,
+      code: vehicleClasses.code,
+      name: vehicleClasses.name,
+      description: vehicleClasses.description,
+      active: vehicleClasses.active,
+      recordVersion: vehicleClasses.recordVersion,
+      vehicleCount: sql<number>`count(${vehicles.id})::int`,
+    })
+    .from(vehicleClasses)
+    .leftJoin(vehicles, eq(vehicles.vehicleClassId, vehicleClasses.id))
+    .groupBy(vehicleClasses.id)
+    .orderBy(asc(vehicleClasses.code));
+}
+
+export async function createVehicleClass(rawInput: unknown) {
+  const actor = await requirePermission("configuration:manage");
+  const input = parseOrThrow(vehicleClassInputSchema, rawInput);
+  try {
+    const [created] = await db.insert(vehicleClasses).values({ ...input, description: input.description ?? null }).returning({ id: vehicleClasses.id });
+    await db.insert(auditEvents).values({ actorUserId: actor.id, eventType: "vehicle_class.created", entityType: "vehicle_class", entityId: created!.id, metadata: { code: input.code } });
+    return created!;
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new AdministrationError("That vehicle class code is already in use.", 409);
+    throw error;
+  }
+}
+
+export async function updateVehicleClass(id: string, rawInput: unknown) {
+  const actor = await requirePermission("configuration:manage");
+  const input = parseOrThrow(vehicleClassUpdateSchema, rawInput);
+  try {
+    const [updated] = await db.update(vehicleClasses).set({
+      code: input.code,
+      name: input.name,
+      description: input.description ?? null,
+      active: input.active,
+      recordVersion: input.recordVersion + 1,
+      updatedAt: new Date(),
+    }).where(and(eq(vehicleClasses.id, id), eq(vehicleClasses.recordVersion, input.recordVersion))).returning({ id: vehicleClasses.id });
+    if (!updated) {
+      const [exists] = await db.select({ id: vehicleClasses.id }).from(vehicleClasses).where(eq(vehicleClasses.id, id));
+      throw new AdministrationError(exists ? "This vehicle class changed in another session. Refresh and try again." : "Vehicle class not found.", exists ? 409 : 404);
+    }
+    await db.insert(auditEvents).values({ actorUserId: actor.id, eventType: "vehicle_class.updated", entityType: "vehicle_class", entityId: id, metadata: { code: input.code, active: input.active } });
+    return { id };
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new AdministrationError("That vehicle class code is already in use.", 409);
+    throw error;
+  }
+}
+
 export async function listAdministrationUsers() {
   await requirePermission("users:manage");
   return db
@@ -150,6 +208,71 @@ export async function listAdministrationUsers() {
     })
     .from(users)
     .orderBy(asc(users.displayName));
+}
+
+export async function listAuditTrail(filters: { eventType?: string; entityType?: string } = {}) {
+  await requirePermission("audit:read");
+  const conditions = [];
+  if (filters.eventType?.trim()) conditions.push(eq(auditEvents.eventType, filters.eventType.trim().slice(0, 120)));
+  if (filters.entityType?.trim()) conditions.push(eq(auditEvents.entityType, filters.entityType.trim().slice(0, 80)));
+  return db
+    .select({
+      id: auditEvents.id,
+      eventType: auditEvents.eventType,
+      entityType: auditEvents.entityType,
+      entityId: auditEvents.entityId,
+      actorName: users.displayName,
+      actorEmail: users.email,
+      metadata: auditEvents.metadata,
+      createdAt: auditEvents.createdAt,
+    })
+    .from(auditEvents)
+    .leftJoin(users, eq(auditEvents.actorUserId, users.id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(250);
+}
+
+export async function getPilotReadiness() {
+  await requirePermission("configuration:manage");
+  const today = new Date().toISOString().slice(0, 10);
+  const [[vehicleSummary], [templateSummary], [assignmentSummary], roleRows, integrations] = await Promise.all([
+    db.select({
+      total: count(),
+      active: sql<number>`count(*) filter (where ${vehicles.lifecycleStatus} = 'active')::int`,
+      activeQr: sql<number>`count(*) filter (where ${vehicleQrCodes.status} = 'active')::int`,
+    }).from(vehicles).leftJoin(vehicleQrCodes, and(eq(vehicleQrCodes.vehicleId, vehicles.id), eq(vehicleQrCodes.status, "active"))),
+    db.select({
+      assignable: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'published' and ${inspectionTemplates.ruleSetStatus} = 'approved' and ${inspectionTemplates.reviewStatus} = 'approved')::int`,
+      pendingReview: sql<number>`count(*) filter (where ${inspectionTemplates.reviewStatus} = 'in_review')::int`,
+      draftOrChanges: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'draft' or ${inspectionTemplates.reviewStatus} = 'changes_requested')::int`,
+    }).from(inspectionTemplates),
+    db.select({
+      activeAssignments: count(),
+      assignedVehicles: sql<number>`count(distinct ${vehicleInspectionAssignments.vehicleId})::int`,
+    }).from(vehicleInspectionAssignments)
+      .innerJoin(inspectionTemplates, eq(vehicleInspectionAssignments.templateId, inspectionTemplates.id))
+      .innerJoin(vehicles, eq(vehicleInspectionAssignments.vehicleId, vehicles.id))
+      .where(and(
+        eq(vehicles.lifecycleStatus, "active"),
+        eq(inspectionTemplates.status, "published"),
+        eq(inspectionTemplates.ruleSetStatus, "approved"),
+        eq(inspectionTemplates.reviewStatus, "approved"),
+        lte(vehicleInspectionAssignments.effectiveFrom, today),
+        or(isNull(vehicleInspectionAssignments.effectiveUntil), sql`${vehicleInspectionAssignments.effectiveUntil} >= ${today}`),
+      )),
+    db.select({ role: users.role, count: count() }).from(users).where(eq(users.active, true)).groupBy(users.role),
+    getRuntimeIntegrationModes(),
+  ]);
+  const roles = Object.fromEntries(roleRows.map((row) => [row.role, row.count])) as Partial<Record<typeof users.$inferSelect.role, number>>;
+  const activeVehicles = vehicleSummary?.active ?? 0;
+  const assignedVehicles = assignmentSummary?.assignedVehicles ?? 0;
+  return {
+    vehicles: { total: vehicleSummary?.total ?? 0, active: activeVehicles, activeQr: vehicleSummary?.activeQr ?? 0, assigned: assignedVehicles, unassigned: Math.max(0, activeVehicles - assignedVehicles) },
+    forms: { assignable: templateSummary?.assignable ?? 0, pendingReview: templateSummary?.pendingReview ?? 0, draftOrChanges: templateSummary?.draftOrChanges ?? 0, activeAssignments: assignmentSummary?.activeAssignments ?? 0 },
+    roles: { drivers: roles.driver ?? 0, supervisors: roles.supervisor ?? 0, fleetManagers: roles.fleet_manager ?? 0, maintenanceTechnicians: roles.maintenance_technician ?? 0, administrators: roles.administrator ?? 0 },
+    integrations,
+  };
 }
 
 export async function resetUserIdentityBinding(userId: string, rawInput: unknown) {
@@ -173,9 +296,8 @@ export async function getAdministrationReferences() {
   await requirePermission("forms:assign");
   const [classes, templates] = await Promise.all([
     db
-      .select({ id: vehicleClasses.id, code: vehicleClasses.code, name: vehicleClasses.name })
+      .select({ id: vehicleClasses.id, code: vehicleClasses.code, name: vehicleClasses.name, active: vehicleClasses.active })
       .from(vehicleClasses)
-      .where(eq(vehicleClasses.active, true))
       .orderBy(asc(vehicleClasses.code)),
     db
       .select({
@@ -186,7 +308,7 @@ export async function getAdministrationReferences() {
         ruleSetStatus: inspectionTemplates.ruleSetStatus,
       })
       .from(inspectionTemplates)
-      .where(and(eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved")))
+      .where(and(eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved"), eq(inspectionTemplates.reviewStatus, "approved")))
       .orderBy(asc(inspectionTemplates.name)),
   ]);
   return { classes, templates };
@@ -915,6 +1037,8 @@ export async function createVehicle(rawInput: unknown) {
   const input = parseOrThrow(vehicleInputSchema, rawInput);
   try {
     return await db.transaction(async (transaction) => {
+      const [vehicleClass] = await transaction.select({ id: vehicleClasses.id }).from(vehicleClasses).where(and(eq(vehicleClasses.id, input.vehicleClassId), eq(vehicleClasses.active, true))).limit(1);
+      if (!vehicleClass) throw new AdministrationError("Select an active vehicle class.", 409);
       const [vehicle] = await transaction
         .insert(vehicles)
         .values({
@@ -956,11 +1080,58 @@ export async function createVehicle(rawInput: unknown) {
   }
 }
 
+export async function importVehicles(rawInput: unknown) {
+  const actor = await requirePermission("fleet:write");
+  const input = parseOrThrow(vehicleImportSchema, rawInput);
+  try {
+    return await db.transaction(async (transaction) => {
+      const classIds = [...new Set(input.vehicles.map((vehicle) => vehicle.vehicleClassId))];
+      const activeClasses = await transaction.select({ id: vehicleClasses.id }).from(vehicleClasses).where(and(eq(vehicleClasses.active, true), inArray(vehicleClasses.id, classIds)));
+      if (activeClasses.length !== classIds.length) throw new AdministrationError("Every imported vehicle must use an active vehicle class.", 409);
+      const created: Array<{ id: string; unitNumber: string }> = [];
+      for (const vehicleInput of input.vehicles) {
+        const [vehicle] = await transaction.insert(vehicles).values({
+          ...vehicleInput,
+          displayCode: vehicleInput.displayCode ?? null,
+          vin: vehicleInput.vin ?? null,
+          licensePlate: vehicleInput.licensePlate ?? null,
+          licenseState: vehicleInput.licenseState ?? null,
+          make: vehicleInput.make ?? null,
+          model: vehicleInput.model ?? null,
+          assetTag: vehicleInput.assetTag ?? null,
+          acquisitionDate: vehicleInput.acquisitionDate ?? null,
+          purchaseCostCents: vehicleInput.purchaseCostCents ?? null,
+          inServiceDate: vehicleInput.inServiceDate ?? null,
+          fuelType: vehicleInput.fuelType ?? null,
+          ownershipType: vehicleInput.ownershipType ?? null,
+          primaryLocation: vehicleInput.primaryLocation ?? null,
+          notes: vehicleInput.notes ?? null,
+        }).returning({ id: vehicles.id, unitNumber: vehicles.unitNumber });
+        await transaction.insert(vehicleQrCodes).values({ vehicleId: vehicle!.id, issuedByUserId: actor.id });
+        created.push(vehicle!);
+        await transaction.insert(auditEvents).values({ actorUserId: actor.id, eventType: "vehicle.created", entityType: "vehicle", entityId: vehicle!.id, metadata: { unitNumber: vehicle!.unitNumber, qrIssued: true, source: "csv_import" } });
+      }
+      await transaction.insert(auditEvents).values({ actorUserId: actor.id, eventType: "vehicle.import_completed", entityType: "vehicle_import", metadata: { count: created.length } });
+      return { imported: created.length, vehicles: created };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new AdministrationError("The import contains a unit number, display code, asset tag, or VIN that is already in use.", 409);
+    if (isForeignKeyViolation(error)) throw new AdministrationError("The import references an unavailable vehicle class.", 409);
+    throw error;
+  }
+}
+
 export async function updateVehicle(id: string, rawInput: unknown) {
   const actor = await requirePermission("fleet:write");
   const input = parseOrThrow(vehicleUpdateSchema, rawInput);
   const nextOdometer = input.currentOdometer ?? null;
   try {
+    const [[current], [selectedClass]] = await Promise.all([
+      db.select({ vehicleClassId: vehicles.vehicleClassId }).from(vehicles).where(eq(vehicles.id, id)).limit(1),
+      db.select({ active: vehicleClasses.active }).from(vehicleClasses).where(eq(vehicleClasses.id, input.vehicleClassId)).limit(1),
+    ]);
+    if (!current) throw new AdministrationError("Vehicle not found.", 404);
+    if (!selectedClass || (!selectedClass.active && current.vehicleClassId !== input.vehicleClassId)) throw new AdministrationError("Select an active vehicle class.", 409);
     const [updated] = await db
       .update(vehicles)
       .set({
@@ -1074,7 +1245,7 @@ export async function assignInspectionTemplate(vehicleId: string, rawInput: unkn
     db
       .select({ id: inspectionTemplates.id })
       .from(inspectionTemplates)
-      .where(and(eq(inspectionTemplates.id, input.templateId), eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved")))
+      .where(and(eq(inspectionTemplates.id, input.templateId), eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved"), eq(inspectionTemplates.reviewStatus, "approved")))
       .limit(1),
     db
       .select({ id: vehicleInspectionAssignments.id })

@@ -45,6 +45,15 @@ fi
 install -o root -g root -m 0644 deploy/native/pwfleet.service /etc/systemd/system/pwfleet.service
 install -o root -g root -m 0644 deploy/native/pwfleet-worker.service /etc/systemd/system/pwfleet-worker.service
 install -o root -g root -m 0644 deploy/native/pwfleet-worker.timer /etc/systemd/system/pwfleet-worker.timer
+install -o root -g root -m 0644 deploy/native/pwfleet-backup.service /etc/systemd/system/pwfleet-backup.service
+install -o root -g root -m 0644 deploy/native/pwfleet-backup.timer /etc/systemd/system/pwfleet-backup.timer
+install -o root -g root -m 0644 deploy/native/pwfleet-healthcheck.service /etc/systemd/system/pwfleet-healthcheck.service
+install -o root -g root -m 0644 deploy/native/pwfleet-healthcheck.timer /etc/systemd/system/pwfleet-healthcheck.timer
+install -d -o root -g root -m 0700 /etc/pwfleet
+if [[ ! -e /etc/pwfleet/backup.env ]]; then
+  install -o root -g root -m 0600 deploy/native/backup.env.example /etc/pwfleet/backup.env
+fi
+install -d -o root -g root -m 0700 /var/backups/pwfleet
 chown -R root:pwfleet "$repo_root"
 chmod -R g=rX,o= "$repo_root"
 
@@ -56,14 +65,13 @@ set +a
 pnpm production:config-check
 pnpm db:migrate
 pnpm db:bootstrap-catalog
-pnpm db:bootstrap-admin
 if [[ "$AUTH_MODE" == "oidc" ]]; then
   pnpm db:bind-bootstrap-admin
 fi
 runuser -u pwfleet --preserve-environment -- ./node_modules/.bin/tsx src/db/production-readiness.ts
 
 systemctl daemon-reload
-systemctl enable --now pwfleet.service pwfleet-worker.timer
+systemctl enable --now pwfleet.service pwfleet-worker.timer pwfleet-backup.timer pwfleet-healthcheck.timer
 
 for attempt in {1..30}; do
   if curl --fail --silent --show-error http://127.0.0.1:3000/api/ready >/dev/null; then

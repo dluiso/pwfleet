@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { formatEnum } from "@/lib/format";
+import { PwaRegistration } from "./pwa-registration";
 
 type AppShellProps = {
   actor: {
@@ -57,6 +58,7 @@ export function AppShell({ actor, children, unreadNotificationCount, development
 
   return (
     <div className="app-frame">
+      <PwaRegistration />
       <aside className={`sidebar ${mobileMenuOpen ? "sidebar-open" : ""}`}>
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">

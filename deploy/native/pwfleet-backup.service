@@ -1,0 +1,24 @@
+[Unit]
+Description=City of Harvey PW Fleet local recovery-point backup
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pwfleet
+Environment=PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env
+Environment=PWFLEET_BACKUP_CONFIG_FILE=/etc/pwfleet/backup.env
+ExecStart=/opt/pwfleet/scripts/run-scheduled-backup.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+ReadWritePaths=/var/backups/pwfleet

@@ -1,0 +1,11 @@
+[Unit]
+Description=Create a PW Fleet recovery point every night
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 America/Chicago
+Persistent=true
+RandomizedDelaySec=900
+Unit=pwfleet-backup.service
+
+[Install]
+WantedBy=timers.target

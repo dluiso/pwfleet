@@ -20,8 +20,9 @@ Exit evidence: migrations and seed complete, unit tests pass, main routes pass b
 - Completed locally: conditional field visibility with earlier-field-only references, client/server evaluation parity, and rejection of hidden-field submissions.
 - Completed locally: hash-bound review rounds, independent operations and governance decisions, self-review prevention, controlled publication, review history, and assignment-safe retirement.
 - Completed locally: provider-neutral OIDC Authorization Code + PKCE, signed provider-token verification, encrypted sessions, secure cookies, logout, identity binding/revocation, and authentication audit events. Real-provider acceptance remains external.
-- Completed locally: vehicle asset dossier, controlled images/documents, expiration alerts, and operational/maintenance history. Vehicle-class creation remains an administrator seed/configuration task rather than an end-user workflow.
-- QR replacement remains audited and preserves historical labels; a dedicated visual replacement timeline is a post-pilot enhancement because current operational pages show the active label and audit records preserve prior events.
+- Completed locally: vehicle asset dossier, controlled images/documents, expiration alerts, operational/maintenance history, administrator-managed vehicle classes, and atomic CSV fleet import with automatic QR issuance.
+- Completed locally: QR replacement remains audited, preserves historical labels, and is shown as a visual lifecycle timeline on the vehicle profile.
+- Completed locally: form-builder section and field duplication, centralized audit review, and a live pilot-readiness dashboard.
 - Complete multi-user acceptance testing for the dual-control workflow after OIDC identities and group mappings are available.
 
 Design constraint: a published template is immutable. Any form or rule change creates a draft successor version, and vehicle assignments remain pinned until that version is reviewed and published.
@@ -56,9 +57,9 @@ Exit evidence: aggregate totals reconcile to source records; scheduled delivery 
 
 - Completed in repository: hardened app/worker containers, production Compose, nginx template, systemd worker timer, fail-closed environment validation, and production preflight.
 - Completed in repository: nonce CSP, HSTS/security headers, persistent request throttling, controlled file handling, mandatory production ClamAV, and storage retention.
-- Completed in repository: checksum-locked migrations, liveness/readiness, backup artifact generation, and a guarded isolated restore-drill tool.
+- Completed in repository: checksum-locked migrations, liveness/readiness, scheduled native backup and health timers, configurable retention, backup artifact generation, and a guarded native isolated restore-drill tool.
 - Completed in repository: remediation and focused verification of all 15 findings from standard security scan `95a72566-8a1a-430f-9e4b-1170b61dccb3`; target-environment security acceptance remains external.
-- Verified locally: lint, type checking, unit tests, optimized build, safety/report/dossier QA, responsive server-rendered layouts, QR/form routing, and fail-closed container behavior. Full interactive browser and role-matrix acceptance remains an environment gate.
+- Verified locally: lint, type checking, unit tests, optimized build, safety/report/dossier QA, and Playwright interaction smoke tests across desktop/tablet/mobile layouts. Full multi-role browser acceptance remains an environment gate.
 - External gate: provision real secrets/services, observe provider/SMTP/database/TLS behavior, perform a restoration exercise, run all-role acceptance, rehearse incident response, and approve the PW pilot.
 
 Exit evidence: release checklist is signed, backups restore successfully, rollback is rehearsed, monitoring alerts reach the responsible team, and PW accepts the pilot.

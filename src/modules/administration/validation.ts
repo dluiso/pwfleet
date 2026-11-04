@@ -66,6 +66,19 @@ export const vehicleUpdateSchema = vehicleInputSchema.safeExtend({
   recordVersion: z.number().int().positive(),
 });
 
+export const vehicleImportSchema = z.object({ vehicles: z.array(vehicleInputSchema).min(1).max(250) });
+
+export const vehicleClassInputSchema = z.object({
+  code: z.string().trim().toUpperCase().min(2).max(12).regex(/^[A-Z0-9_-]+$/, "Use only letters, numbers, hyphens, and underscores."),
+  name: z.string().trim().min(2).max(120),
+  description: optionalTrimmed(1000),
+  active: z.boolean().default(true),
+});
+
+export const vehicleClassUpdateSchema = vehicleClassInputSchema.extend({
+  recordVersion: z.number().int().positive(),
+});
+
 export const vehicleDocumentMetadataSchema = z
   .object({
     category: z.enum(["profile_photo", "registration", "insurance", "title", "warranty", "service_record", "other"]),

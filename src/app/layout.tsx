@@ -13,6 +13,8 @@ export const metadata: Metadata = {
     template: "%s | Harvey PW Fleet",
   },
   description: "City of Harvey Public Works fleet inspections and vehicle readiness.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "PW Fleet", statusBarStyle: "black-translucent" },
   robots: { index: false, follow: false },
 };
 

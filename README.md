@@ -8,12 +8,12 @@ The repository is a locally verified production release candidate. It includes:
 
 - vehicle inventory with internal unit numbers and optional display codes such as `DT-03`;
 - one revocable, non-authenticating QR identifier per vehicle;
-- administrator workflows to create and update vehicles, automatically issue or replace QR labels, and preserve QR audit history;
+- administrator workflows to create and update vehicles, atomically import up to 250 vehicles from CSV, manage configurable vehicle classes, automatically issue or replace QR labels, and show the complete QR lifecycle;
 - user administration for all six application roles, including local-password creation and reset, session revocation, controlled unused-account deletion, deactivation for identities with history, and self-lockout/last-administrator protections;
 - approved published-form assignment directly from vehicle profiles, clear readiness guidance, and reversible assignment ending that preserves inspection history;
 - form-definition review by section, field, exception rule, operational disposition, and blocking behavior;
 - immutable form version history with complete published-to-draft cloning as the foundation for the visual designer;
-- administrator creation of independent form families from an empty draft, plus a focused draft builder with section navigation, field canvas, property inspector, searchable fields, separate logic editing, responsive live preview, settings, and publication readiness;
+- administrator creation of independent form families from an empty draft, plus a focused draft builder with section/field duplication, section navigation, field canvas, property inspector, searchable fields, separate logic editing, responsive live preview, settings, and publication readiness;
 - configurable metadata, ordered sections and fields, field types, options, conditional visibility, exception rules, evidence requirements, notifications, severity, and vehicle disposition;
 - saveable incomplete drafts, protected deletion of unused drafts, immutable published history, successor versioning, independent review, publication, assignment, and assignment-safe retirement;
 - conditional field visibility that may reference only an earlier field, preventing circular dependencies and rejecting answers submitted for hidden fields;
@@ -37,8 +37,11 @@ The repository is a locally verified production release candidate. It includes:
 - a complete vehicle dossier with asset data, a primary image, controlled documents, expiration alerts, inspection history, maintenance labor/cost history, and evidence-preserving retirement;
 - OIDC Authorization Code + PKCE authentication, verified first-binding email, encrypted short-lived tokens backed by revocable server sessions, secure cookies, local authorization, immutable provider identity binding, logout, and login auditing;
 - PostgreSQL-backed request throttling, per-actor upload quotas, bounded image/PDF processing, nonce-based CSP, security headers, fail-closed ClamAV upload scanning in production, storage capacity thresholds, and automated retention;
+- a centralized, actor-attributed audit trail and a live pilot-readiness dashboard covering fleet records, QR coverage, approved forms, assignments, role coverage, authentication, and email delivery;
+- safe in-session inspection draft recovery, explicit offline submission blocking, installable PWA metadata, and an offline shell that never caches protected API or authentication responses;
+- Playwright browser smoke coverage across desktop, tablet, and mobile layouts;
 - English responsive UI for phone, tablet, and desktop;
-- native Ubuntu services under a dedicated `pwfleet` account, systemd web/worker units, PostgreSQL TLS, ClamAV, production preflight, backup tooling, and an optional container topology for other environments.
+- native Ubuntu services under a dedicated `pwfleet` account, systemd web/worker units, PostgreSQL TLS, ClamAV, production preflight, scheduled native backups, health monitoring, guarded isolated restoration, and an optional container topology for other environments.
 
 A native Ubuntu production environment is active for controlled operational testing with local authentication and capture-only email. Microsoft Entra ID, the approved SMTP relay, an observed off-host backup restoration, and City of Harvey user acceptance remain external organizational go-live gates. See [Release Status](docs/RELEASE_STATUS.md), [Production Runbook](docs/PRODUCTION_RUNBOOK.md), and [Release Checklist](docs/RELEASE_CHECKLIST.md).
 
@@ -66,6 +69,8 @@ Useful checks:
 
 ```bash
 pnpm check
+pnpm exec playwright install chromium
+pnpm test:e2e
 pnpm audit --audit-level moderate
 pnpm qa:create-inspection
 pnpm qa:safety-cycle
@@ -103,7 +108,7 @@ Internet -> Cloudflare Tunnel -> Next.js on 127.0.0.1:3000 -> local TLS PostgreS
 systemd timer -> one-shot worker ---------------------------> approved SMTP relay
 ```
 
-The native service binds only to loopback, runs as the unprivileged `pwfleet` account, and uses systemd filesystem, device, kernel, and privilege restrictions. PostgreSQL accepts only local connections and uses hostname-validated TLS. Its backup, capacity, and restoration policy still requires an accountable operator.
+The native service binds only to loopback, runs as the unprivileged `pwfleet` account, and uses systemd filesystem, device, kernel, and privilege restrictions. PostgreSQL accepts only local connections and uses hostname-validated TLS. Native health and daily-backup timers are installed by the deployment; encrypted off-host copy ownership and an observed isolated restoration remain organizational acceptance gates.
 
 Deploy the accepted checkout on Ubuntu with:
 
@@ -111,7 +116,7 @@ Deploy the accepted checkout on Ubuntu with:
 sudo PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 ```
 
-The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create sample vehicles, drivers, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist.
+The deployment bootstraps only the two supplied inspection form families and their vehicle classes. It does not create users, sample vehicles, assignments, or QR codes. Re-running the catalog bootstrap is idempotent and does not overwrite forms that already exist; production preflight requires the already-authorized active administrator.
 
 Production supports two runtime authentication modes. `local` provides a temporary, database-backed sign-in with scrypt password hashing, encrypted cookies, server-side session revocation, and database rate limits. The initial password is read only from standard input by `pnpm db:bootstrap-local-password`; it must never be placed in an environment file or command argument. An administrator can later open **Administration > Microsoft & email integrations** to enter the single-tenant issuer, client ID, write-only client secret, and administrator Object ID. Successful discovery validation activates Microsoft Entra and revokes existing sessions without a rebuild or deployment. The same screen keeps notifications in capture mode until the approved Microsoft SMTP configuration passes live verification. Provider secrets are encrypted with AES-256-GCM using the root-managed `AUTH_SECRET` and are never returned to the browser.
 

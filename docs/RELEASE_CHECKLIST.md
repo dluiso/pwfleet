@@ -6,7 +6,8 @@ Each gate requires observed evidence. “Configured” without a test is not acc
 
 - [x] Clean reviewed release diff; no secrets, local environment files, debug output, or unrelated files.
 - [x] `pnpm install --frozen-lockfile`, `pnpm check`, dependency audit, and native Ubuntu build pass from the deployed checkout.
-- [x] All 20 migrations apply to the release database; applied checksums match source.
+- [x] All 21 migrations apply to the local release database; applied checksums match source. Production evidence is recorded at deployment.
+- [x] Playwright smoke tests pass on desktop, tablet, and mobile viewport projects for fleet interaction, QR printing, form lifecycle, and PWA cache boundaries.
 - [ ] Safety-cycle, report-delivery, vehicle-dossier, notification retry, PDF, CSV, and storage cleanup QA pass with exact cleanup.
 - [x] The 15 findings from standard scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused source/test verification recorded in `SECURITY_REMEDIATION.md`; environment-specific security acceptance remains below.
 
@@ -36,7 +37,7 @@ Each gate requires observed evidence. “Configured” without a test is not acc
 - [ ] Public DNS/TLS, nginx request limits, forwarded-header replacement, loopback-only app binding, CSP, HSTS, and security headers are observed.
 - [ ] PostgreSQL TLS, CA validation, and least privilege are observed; capacity monitoring, encrypted off-host backup retention, and restore ownership remain pending.
 - [ ] Persistent uploads survive container replacement; ClamAV rejects the EICAR test file in a controlled non-production test.
-- [ ] `/api/live` and `/api/ready` alerts reach an accountable operator.
+- [ ] The installed health timer observes `/api/live` and `/api/ready`; failures reach an accountable operator through the approved host monitoring path.
 - [ ] A full database-plus-upload backup restores into an isolated target and sampled files/hashes/PDFs reconcile.
 - [ ] Rollback and incident-response exercises are recorded.
 

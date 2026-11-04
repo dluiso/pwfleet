@@ -6,6 +6,7 @@ import { CircleMinus, ClipboardPlus, Pencil, Plus, QrCode, Search, X } from "luc
 import { useMemo, useState } from "react";
 import { formatEnum, vehicleLabel } from "@/lib/format";
 import { StatusBadge } from "./status-badge";
+import { VehicleCsvImport } from "./vehicle-csv-import";
 
 type Vehicle = {
   id: string;
@@ -36,7 +37,7 @@ type Vehicle = {
   qrStatus: string | null;
 };
 
-type VehicleClass = { id: string; code: string; name: string };
+type VehicleClass = { id: string; code: string; name: string; active: boolean };
 type Template = { id: string; code: string; name: string; version: number; ruleSetStatus: string };
 type Assignment = {
   id: string;
@@ -122,7 +123,7 @@ export function AdminVehicleManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vehicleForm, setVehicleForm] = useState(() => (
-    initialCreateVehicle ? { ...emptyVehicle, vehicleClassId: classes[0]?.id ?? "" } : emptyVehicle
+    initialCreateVehicle ? { ...emptyVehicle, vehicleClassId: classes.find((item) => item.active)?.id ?? "" } : emptyVehicle
   ));
   const [qrReason, setQrReason] = useState("");
   const [assignmentForm, setAssignmentForm] = useState({ templateId: templates[0]?.id ?? "", frequency: "before_first_departure", autoLaunch: true });
@@ -151,7 +152,7 @@ export function AdminVehicleManager({
             notes: vehicle.notes ?? "",
             lifecycleStatus: vehicle.lifecycleStatus,
           }
-        : { ...emptyVehicle, vehicleClassId: classes[0]?.id ?? "" },
+        : { ...emptyVehicle, vehicleClassId: classes.find((item) => item.active)?.id ?? "" },
     );
     setModal({ kind: "vehicle", vehicle });
   }
@@ -250,7 +251,7 @@ export function AdminVehicleManager({
     <div className="page-stack">
       <section className="page-heading-row">
         <div><span className="eyebrow">FLEET CONFIGURATION</span><h1>Vehicle administration</h1><p>Create fleet records, manage QR labels, and assign inspection forms.</p></div>
-        <button className="button button-primary" type="button" onClick={() => openVehicleEditor(null)}><Plus size={17} /> Add vehicle</button>
+        <div className="hero-actions"><VehicleCsvImport classes={classes.filter((item) => item.active)} /><button className="button button-primary" type="button" onClick={() => openVehicleEditor(null)}><Plus size={17} /> Add vehicle</button></div>
       </section>
       {!templates.length ? <article className="safety-callout safety-callout-wide"><ClipboardPlus size={22} /><div><strong>No assignable inspection forms</strong><p>Only published versions with approved safety rules can be assigned. Complete both review lanes and publish an approved version in the <Link href="/settings/forms">Form catalog</Link>.</p></div></article> : null}
       <section className="panel admin-table-panel">
@@ -275,7 +276,7 @@ export function AdminVehicleManager({
             <label><span>Unit number *</span><input required maxLength={24} value={vehicleForm.unitNumber} onChange={(event) => setVehicleForm({ ...vehicleForm, unitNumber: event.target.value })} placeholder="03" /></label>
             <label><span>Display code</span><input maxLength={40} value={vehicleForm.displayCode} onChange={(event) => setVehicleForm({ ...vehicleForm, displayCode: event.target.value })} placeholder="DT-03" /></label>
             <label><span>Asset tag</span><input maxLength={64} value={vehicleForm.assetTag} onChange={(event) => setVehicleForm({ ...vehicleForm, assetTag: event.target.value })} placeholder="PW-ASSET-004" /></label>
-            <label><span>Vehicle class *</span><select required value={vehicleForm.vehicleClassId} onChange={(event) => setVehicleForm({ ...vehicleForm, vehicleClassId: event.target.value })}>{classes.map((item) => <option value={item.id} key={item.id}>{item.code} · {item.name}</option>)}</select></label>
+            <label><span>Vehicle class *</span><select required value={vehicleForm.vehicleClassId} onChange={(event) => setVehicleForm({ ...vehicleForm, vehicleClassId: event.target.value })}>{classes.map((item) => <option value={item.id} key={item.id} disabled={!item.active && item.id !== modal.vehicle?.vehicleClassId}>{item.code} · {item.name}{item.active ? "" : " (inactive)"}</option>)}</select></label>
             <label><span>Lifecycle status *</span><select value={vehicleForm.lifecycleStatus} onChange={(event) => setVehicleForm({ ...vehicleForm, lifecycleStatus: event.target.value as typeof vehicleForm.lifecycleStatus })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="disposed">Disposed</option></select></label>
             <label><span>Year</span><input type="number" min="1900" max={new Date().getFullYear() + 2} value={vehicleForm.year} onChange={(event) => setVehicleForm({ ...vehicleForm, year: event.target.value })} /></label>
             <label><span>Make</span><input value={vehicleForm.make} maxLength={80} onChange={(event) => setVehicleForm({ ...vehicleForm, make: event.target.value })} /></label>

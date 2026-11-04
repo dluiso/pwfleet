@@ -9,7 +9,8 @@ Internet -> Cloudflare Tunnel -> 127.0.0.1:3000 -> Next.js/systemd
                                               |-> PostgreSQL over local TLS
                                               |-> /var/lib/pwfleet
                                               |-> ClamAV local socket
-systemd timer -> PW Fleet worker -> capture mode or approved Microsoft SMTP
+systemd timers -> PW Fleet worker, health checks, and native backups
+PW Fleet worker -> capture mode or approved Microsoft SMTP
 ```
 
 The application runs as the unprivileged `pwfleet` system account. The checkout is `/opt/pwfleet`; the root-managed environment is `/etc/pwfleet/app.env`. The service binds only to loopback. Cloudflare owns the public HTTPS edge and forwards to `http://localhost:3000`.
@@ -35,7 +36,7 @@ git pull --ff-only origin main
 PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env ./scripts/deploy-native-ubuntu.sh
 ```
 
-The deployment restores locked dependencies, runs lint, TypeScript, unit tests and the production build, installs the systemd units, validates base configuration, applies checksum-locked migrations, bootstraps the form catalog and administrator, executes the full preflight, and starts the application and worker timer.
+The deployment restores locked dependencies, runs lint, TypeScript, unit tests and the production build, installs the systemd units, validates base configuration, applies checksum-locked migrations, bootstraps only the form/class catalog, executes the full preflight, and starts the application, worker, health, and backup timers. It does not create users. The preflight requires an existing active administrator with a local password while local authentication is selected.
 
 For the first local administrator only, set the password through the protected standard-input prompt:
 
@@ -51,8 +52,8 @@ Never place that password in an argument, environment variable, shell history, G
 ## 4. Acceptance checks
 
 ```bash
-systemctl is-enabled pwfleet.service pwfleet-worker.timer
-systemctl is-active pwfleet.service pwfleet-worker.timer
+systemctl is-enabled pwfleet.service pwfleet-worker.timer pwfleet-healthcheck.timer pwfleet-backup.timer
+systemctl is-active pwfleet.service pwfleet-worker.timer pwfleet-healthcheck.timer pwfleet-backup.timer
 curl --fail http://127.0.0.1:3000/api/live
 curl --fail http://127.0.0.1:3000/api/ready
 ```
@@ -70,16 +71,36 @@ Keep local authentication and capture mode active until the tenant work in `MICR
 ## 6. Scheduled work and monitoring
 
 ```bash
-systemctl list-timers pwfleet-worker.timer
+systemctl list-timers pwfleet-worker.timer pwfleet-healthcheck.timer pwfleet-backup.timer
 journalctl -u pwfleet.service --since today
 journalctl -u pwfleet-worker.service --since today
+journalctl -u pwfleet-healthcheck.service --since today
+journalctl -u pwfleet-backup.service --since today
 ```
 
 Monitor the public HTTPS endpoint, `/api/live`, `/api/ready`, PostgreSQL capacity, storage capacity, ClamAV health/signature freshness, timer failures, dead-letter notifications, Microsoft login failures, and unusual throttling.
 
 ## 7. Backup and recovery
 
-Use `scripts/backup-native-production.sh` with an operator-selected protected destination. It creates the database and file artifacts required by the native deployment. Encrypt and copy backups to the organization-approved off-host destination. Run restoration drills only against an isolated database and storage path; never point a drill at production.
+The deployment installs `/etc/pwfleet/backup.env` from `deploy/native/backup.env.example` when it is absent. Configure a protected absolute backup destination and retention period there, then validate the scheduled unit:
+
+```bash
+systemctl start pwfleet-backup.service
+systemctl status pwfleet-backup.service --no-pager
+find /var/backups/pwfleet -maxdepth 1 -type f -printf '%f\n'
+```
+
+`scripts/backup-native-production.sh` creates checksum-protected database and file artifacts for one recovery point. Encrypt and copy those artifacts to the organization-approved off-host destination.
+
+Run the native restoration tool only against an empty isolated storage path and a separate non-production database. It requires an explicit acknowledgement phrase and rejects the configured production targets:
+
+```bash
+RESTORE_TARGET_DATABASE_URL='postgresql://restore_user@localhost:5432/pwfleet_restore' \
+RESTORE_TARGET_UPLOADS_PATH=/var/lib/pwfleet-restore \
+./scripts/restore-drill.sh /protected/path/to/pwfleet-backup-TIMESTAMP.tar.gz RESTORE-INTO-ISOLATED-TARGET
+```
+
+Reconcile sampled database counts, attachments, checksums, and generated reports before recording the drill as accepted. Never point a drill at production.
 
 Database migrations are forward-only. For rollback, stop writes, select a previously accepted Git revision only when it is compatible with the applied schema, rebuild and restart the native service. If compatibility is not established, restore the matching database and file backup as one recovery point.
 

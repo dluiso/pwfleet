@@ -6,18 +6,34 @@ import { VehicleDocumentError } from "@/modules/fleet/vehicle-documents";
 
 const maximumJsonBytes = 128 * 1024;
 
-export async function readAdministrativeJson(request: Request): Promise<unknown | Response> {
+export async function readAdministrativeJson(request: Request, maximumBytes = maximumJsonBytes): Promise<unknown | Response> {
   if (!hasSameOrigin(request)) return sameOriginError();
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   if (!contentType.startsWith("application/json")) {
     return Response.json({ error: "Content-Type must be application/json." }, { status: 415 });
   }
   const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (!Number.isFinite(contentLength) || contentLength > maximumJsonBytes) {
+  if (!Number.isFinite(contentLength) || contentLength > maximumBytes) {
     return Response.json({ error: "The request payload is too large." }, { status: 413 });
   }
   try {
-    return await request.json();
+    if (!request.body) throw new Error("Missing request body.");
+    const reader = request.body.getReader();
+    const decoder = new TextDecoder();
+    let totalBytes = 0;
+    let text = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maximumBytes) {
+        await reader.cancel();
+        return Response.json({ error: "The request payload is too large." }, { status: 413 });
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return JSON.parse(text) as unknown;
   } catch {
     return Response.json({ error: "The request body must be valid JSON." }, { status: 400 });
   }

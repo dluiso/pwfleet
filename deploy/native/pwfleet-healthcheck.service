@@ -1,0 +1,21 @@
+[Unit]
+Description=Verify City of Harvey PW Fleet internal readiness and public liveness
+After=pwfleet.service cloudflared.service
+Requires=pwfleet.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pwfleet
+Environment=PWFLEET_APP_ENV_FILE=/etc/pwfleet/app.env
+ExecStart=/opt/pwfleet/scripts/healthcheck-native-production.sh
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true

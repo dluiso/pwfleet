@@ -6,6 +6,7 @@ import {
   ArrowUp,
   CheckCircle2,
   CirclePlus,
+  Copy,
   Eye,
   FileText,
   GripVertical,
@@ -120,6 +121,19 @@ function move<T>(items: T[], index: number, direction: -1 | 1): T[] {
   const copy = [...items];
   [copy[index], copy[target]] = [copy[target]!, copy[index]!];
   return copy;
+}
+
+function uniqueKey(preferred: string, existing: Set<string>, maximum = 100): string {
+  const copySuffix = "_copy";
+  const root = `${preferred.slice(0, maximum - copySuffix.length)}${copySuffix}`.replace(/_copy_copy$/, "_copy");
+  let candidate = root;
+  let suffix = 2;
+  while (existing.has(candidate)) {
+    const numberedSuffix = `_${suffix++}`;
+    candidate = `${root.slice(0, maximum - numberedSuffix.length)}${numberedSuffix}`;
+  }
+  existing.add(candidate);
+  return candidate;
 }
 
 function normalizeRule(rule: DraftRuleDefinition): DraftRuleDefinition {
@@ -248,6 +262,33 @@ export function DraftTemplateEditor({ templateId, initial, workflow }: { templat
     setSectionIndex(target);
   }
 
+  function duplicateSection() {
+    if (!activeSection) return;
+    const sectionKeys = new Set(draft.sections.map((entry) => entry.sectionKey));
+    const itemKeys = new Set(draft.sections.flatMap((entry) => entry.items.map((item) => item.itemKey)));
+    const remappedKeys = new Map<string, string>();
+    for (const item of activeSection.items) remappedKeys.set(item.itemKey, uniqueKey(item.itemKey, itemKeys));
+    const duplicate: DraftSectionDefinition = {
+      ...activeSection,
+      sectionKey: uniqueKey(activeSection.sectionKey, sectionKeys, 80),
+      title: `${activeSection.title || "Untitled section"} copy`,
+      items: activeSection.items.map((item) => ({
+        ...item,
+        itemKey: remappedKeys.get(item.itemKey)!,
+        options: [...item.options],
+        rules: item.rules.map((rule) => ({ ...rule })),
+        visibilityCondition: item.visibilityCondition
+          ? { ...item.visibilityCondition, sourceItemKey: remappedKeys.get(item.visibilityCondition.sourceItemKey) ?? item.visibilityCondition.sourceItemKey }
+          : null,
+      })),
+    };
+    const nextSections = [...draft.sections];
+    nextSections.splice(sectionIndex + 1, 0, duplicate);
+    change({ ...draft, sections: nextSections });
+    setSectionIndex(sectionIndex + 1);
+    setItemIndex(duplicate.items.length ? 0 : null);
+  }
+
   function addItem() {
     if (!activeSection) return;
     updateSection(sectionIndex, { items: [...activeSection.items, newItem()] });
@@ -269,6 +310,23 @@ export function DraftTemplateEditor({ templateId, initial, workflow }: { templat
     if (target < 0 || target >= activeSection.items.length) return;
     updateSection(sectionIndex, { items: move(activeSection.items, itemIndex, direction) });
     setItemIndex(target);
+  }
+
+  function duplicateItem() {
+    if (!activeSection || itemIndex === null || !activeItem) return;
+    const itemKeys = new Set(draft.sections.flatMap((entry) => entry.items.map((item) => item.itemKey)));
+    const duplicate: DraftItemDefinition = {
+      ...activeItem,
+      itemKey: uniqueKey(activeItem.itemKey, itemKeys),
+      label: `${activeItem.label || "Untitled field"} copy`,
+      options: [...activeItem.options],
+      rules: activeItem.rules.map((rule) => ({ ...rule })),
+      visibilityCondition: activeItem.visibilityCondition ? { ...activeItem.visibilityCondition } : null,
+    };
+    const items = [...activeSection.items];
+    items.splice(itemIndex + 1, 0, duplicate);
+    updateSection(sectionIndex, { items });
+    setItemIndex(itemIndex + 1);
   }
 
   async function saveDraft() {
@@ -303,7 +361,7 @@ export function DraftTemplateEditor({ templateId, initial, workflow }: { templat
       <label><span>Help text</span><textarea rows={3} maxLength={500} value={activeItem.helpText} onChange={(event) => updateItem(sectionIndex, itemIndex, { helpText: event.target.value })} /></label>
       {activeItem.fieldType === "select" || activeItem.fieldType === "fuel_level" ? <label><span>Options * · one per line</span><textarea rows={6} value={activeItem.options.join("\n")} onChange={(event) => updateItem(sectionIndex, itemIndex, { options: event.target.value.split("\n").map((option) => option.trim()).filter(Boolean) })} /></label> : null}
       <label className="checkbox-field builder-checkbox"><input type="checkbox" checked={activeItem.required} onChange={(event) => updateItem(sectionIndex, itemIndex, { required: event.target.checked })} /><span>Required field</span></label>
-      <div className="builder-property-actions"><button type="button" title="Move field up" disabled={itemIndex === 0} onClick={() => moveItem(-1)}><ArrowUp size={14} /> Move up</button><button type="button" title="Move field down" disabled={itemIndex === activeSection!.items.length - 1} onClick={() => moveItem(1)}><ArrowDown size={14} /> Move down</button><button className="builder-delete-action" type="button" onClick={() => removeItem(itemIndex)}><Trash2 size={14} /> Delete</button></div>
+      <div className="builder-property-actions"><button type="button" title="Duplicate field" onClick={duplicateItem}><Copy size={14} /> Duplicate</button><button type="button" title="Move field up" disabled={itemIndex === 0} onClick={() => moveItem(-1)}><ArrowUp size={14} /> Move up</button><button type="button" title="Move field down" disabled={itemIndex === activeSection!.items.length - 1} onClick={() => moveItem(1)}><ArrowDown size={14} /> Move down</button><button className="builder-delete-action" type="button" onClick={() => removeItem(itemIndex)}><Trash2 size={14} /> Delete</button></div>
     </div>;
   }
 
@@ -327,7 +385,7 @@ export function DraftTemplateEditor({ templateId, initial, workflow }: { templat
 
   return (
     <section className="draft-editor builder-shell">
-      <div className="panel draft-editor-toolbar builder-toolbar"><div><span className="eyebrow">DRAFT BUILDER</span><h2>{draft.name}</h2><p>{dirty ? "Unsaved changes" : "All changes saved"} · Version definition #{draft.recordVersion}</p></div><div className="draft-save-area">{error ? <span className="draft-save-error">{error}</span> : null}{saved ? <span className="draft-save-success">{saved}</span> : null}<button className="button button-primary" type="button" disabled={busy || !dirty} onClick={saveDraft}><Save size={16} /> {busy ? "Saving…" : dirty ? "Save draft" : "Saved"}</button></div></div>
+      <div className="panel draft-editor-toolbar builder-toolbar"><div><span className="eyebrow">DRAFT BUILDER</span><h2>{draft.name}</h2><p>{dirty ? "Unsaved changes" : "All changes saved"} · Version definition #{draft.recordVersion}</p></div><div className="draft-save-area">{error ? <span className="draft-save-error">{error}</span> : null}{saved ? <span className="draft-save-success">{saved}</span> : null}{tab === "build" && activeSection ? <button className="button button-secondary" type="button" onClick={duplicateSection}><Copy size={16} /> Duplicate section</button> : null}<button className="button button-primary" type="button" disabled={busy || !dirty} onClick={saveDraft}><Save size={16} /> {busy ? "Saving…" : dirty ? "Save draft" : "Saved"}</button></div></div>
 
       <nav className="panel builder-tabs" aria-label="Form builder areas">{tabs.map((entry) => { const Icon = entry.icon; return <button className={tab === entry.id ? "builder-tab builder-tab-active" : "builder-tab"} type="button" key={entry.id} onClick={() => setTab(entry.id)}><Icon size={16} /><span>{entry.label}</span>{entry.id === "publish" && !readyForReview ? <i>{readiness.filter((item) => !item.ready).length}</i> : null}</button>; })}</nav>
 

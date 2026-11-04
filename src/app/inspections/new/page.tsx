@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { InspectionForm } from "@/components/inspection-form";
 import { getTemplateDefinition, getVehicleById } from "@/modules/fleet/repository";
 import { vehicleLabel } from "@/lib/format";
+import { getCurrentActor } from "@/lib/auth";
 
 export default async function NewInspectionPage({
   searchParams,
@@ -10,15 +11,17 @@ export default async function NewInspectionPage({
 }) {
   const query = await searchParams;
   if (!query.vehicleId || !query.templateId) notFound();
-  const [vehicle, template] = await Promise.all([
+  const [vehicle, template, actor] = await Promise.all([
     getVehicleById(query.vehicleId),
     getTemplateDefinition(query.templateId),
+    getCurrentActor(),
   ]);
   if (!vehicle || !template) notFound();
   if (!vehicle.assignments.some((assignment) => assignment.templateId === template.id)) notFound();
 
   return (
     <InspectionForm
+      actorId={actor.id}
       vehicle={{
         id: vehicle.id,
         label: vehicleLabel(vehicle),

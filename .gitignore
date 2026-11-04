@@ -14,6 +14,9 @@ dist/
 var/
 output/
 tmp/
+playwright-report/
+test-results/
+playwright/.auth/
 
 # Editor and operating-system files
 .DS_Store

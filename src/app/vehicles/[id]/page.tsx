@@ -141,6 +141,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
             </div>
           ) : null}
           <div className="metadata-note"><span>QR status</span><strong>{formatEnum(vehicle.qrStatus ?? "missing")}</strong><p>Activated {formatDateTime(vehicle.qrActivatedAt)}</p><p>Last scanned {formatDateTime(vehicle.qrLastScannedAt)}</p></div>
+          <article className="panel qr-history-card"><span className="eyebrow">LABEL HISTORY</span><h2>QR lifecycle</h2>{vehicle.qrHistory.map((label) => <div className="qr-history-row" key={label.id}><div><strong>{label.publicId.slice(0, 8).toUpperCase()}</strong><span>Issued {formatDateTime(label.activatedAt)}</span>{label.lastScannedAt ? <span>Last scan {formatDateTime(label.lastScannedAt)}</span> : null}{label.revokeReason ? <small>{label.revokeReason}</small> : null}</div><span className={`workflow-status workflow-status-${label.status === "active" ? "approved" : "retired"}`}>{formatEnum(label.status)}</span></div>)}</article>
         </aside>
       </section>
     </div>

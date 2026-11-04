@@ -1,0 +1,12 @@
+[Unit]
+Description=Monitor PW Fleet every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+RandomizedDelaySec=20
+Unit=pwfleet-healthcheck.service
+
+[Install]
+WantedBy=timers.target

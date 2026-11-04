@@ -235,6 +235,7 @@ export const vehicleClasses = pgTable(
     name: varchar("name", { length: 120 }).notNull(),
     description: text("description"),
     active: boolean("active").notNull().default(true),
+    recordVersion: integer("record_version").notNull().default(1),
     ...timestamps,
   },
   (table) => [

@@ -13,6 +13,9 @@ import {
   resetLocalPasswordSchema,
   userInputSchema,
   vehicleInputSchema,
+  vehicleImportSchema,
+  vehicleClassInputSchema,
+  vehicleClassUpdateSchema,
   vehicleUpdateSchema,
   vehicleDocumentMetadataSchema,
   templateWorkflowInputSchema,
@@ -61,6 +64,14 @@ describe("administration validation", () => {
     expect(vehicleDocumentMetadataSchema.safeParse({ category: "profile_photo", isPrimary: true }).success).toBe(true);
     expect(vehicleDocumentMetadataSchema.safeParse({ category: "insurance", isPrimary: true }).success).toBe(false);
     expect(vehicleDocumentMetadataSchema.safeParse({ category: "warranty", effectiveDate: "2026-05-01", expiresOn: "2026-04-01", isPrimary: false }).success).toBe(false);
+  });
+
+  it("validates configurable vehicle classes and bounded atomic imports", () => {
+    expect(vehicleClassInputSchema.parse({ code: "sv-1", name: "Street Sweeper", active: true }).code).toBe("SV-1");
+    expect(vehicleClassUpdateSchema.safeParse({ code: "SV", name: "Street Sweeper", active: false, recordVersion: 0 }).success).toBe(false);
+    expect(vehicleImportSchema.safeParse({ vehicles: [{ unitNumber: "03", vehicleClassId: classId, lifecycleStatus: "active" }] }).success).toBe(true);
+    expect(vehicleImportSchema.safeParse({ vehicles: [] }).success).toBe(false);
+    expect(vehicleImportSchema.safeParse({ vehicles: Array.from({ length: 251 }, (_, index) => ({ unitNumber: String(index), vehicleClassId: classId })) }).success).toBe(false);
   });
 
   it("validates user roles, assignments, and QR replacement reasons", () => {

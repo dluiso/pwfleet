@@ -17,6 +17,8 @@ export PGSSLMODE=verify-full
 export PGSSLROOTCERT="$DATABASE_SSL_CA_FILE"
 
 backup_root="$1"
+retention_days="${PWFLEET_BACKUP_RETENTION_DAYS:-30}"
+[[ "$retention_days" =~ ^[0-9]+$ ]] && (( retention_days >= 1 && retention_days <= 3650 )) || { echo "PWFLEET_BACKUP_RETENTION_DAYS must be between 1 and 3650." >&2; exit 2; }
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 install -d -m 0700 "$backup_root"
 exec 9>"$backup_root/.backup.lock"
@@ -39,3 +41,4 @@ archive="$backup_root/pwfleet-${timestamp}.tar.gz"
 tar -C "$stage" -czf "$archive" .
 sha256sum "$archive" > "$archive.sha256"
 echo "Backup created: $archive"
+find "$backup_root" -maxdepth 1 -type f \( -name 'pwfleet-*.tar.gz' -o -name 'pwfleet-*.tar.gz.sha256' \) -mtime "+$retention_days" -delete
