@@ -1,6 +1,6 @@
 # Release Status
 
-Status date: 2026-09-15
+Status date: 2026-11-04
 
 ## Release candidate and native server preparation
 
@@ -17,12 +17,13 @@ The repository is complete as a local Linux production release candidate. Curren
 - no embedded private key, common provider token, hardcoded credential assignment, or public secret variable was detected.
 - vehicle profiles now expose form assignment directly, and the assignment selector offers only published versions whose safety rules completed approval;
 - local user administration now supports password creation/reset with session revocation, accurate authentication-state messaging, manager-scoped role protections, and controlled deletion of accounts without operational history.
+- the November dependency security refresh updates Next.js, Nodemailer, Sharp, Zod, Vitest, Vite, source-map-js, brace-expansion, and their lockfile graph so production dependencies have no known `pnpm audit --prod` findings; lint, type generation, all tests, and the standalone production build pass after the refresh. The full development audit retains one transitive `minimatch` advisory in the ESLint toolchain because the affected consumers still require the older API; a global major-version override was rejected after a focused compatibility reproduction demonstrated a real ESLint plugin regression.
 
 Responsive Chrome inspection confirmed the desktop dashboard, mobile navigation, QR-to-vehicle routing, blocked-vehicle messaging, and both source-form variants. It also led to corrections for blocked inspection launch and stale report-delivery copy. During the final automation session Chrome displayed the server-rendered pages but did not execute the Next.js client bootstrap, so interactive client controls must be observed again in the target browser/UAT environment; CSP was not weakened to bypass this condition.
 
 The Ubuntu 24.04 target is deployed natively without Docker. Node.js 24, PostgreSQL 16, ClamAV, the dedicated `pwfleet` system account, protected application directories, local PostgreSQL TLS, systemd units, and the Git checkout are installed. The application and worker timer are enabled and active. The two supplied form families and vehicle classes remain the bootstrapped catalog; production now also contains administrator-created trial users and vehicles used for controlled acceptance. The existing Cloudflare tunnel route points the public hostname to the loopback application port.
 
-The September 15 user-administration and vehicle-assignment usability changes are validated locally and require the normal native deployment command before they become active on the Ubuntu target.
+The September 15 user-administration and vehicle-assignment usability changes were deployed to the Ubuntu target and verified through the public application. Subsequent releases, including dependency security maintenance, use the same guarded native deployment command and independent post-deployment health checks.
 
 No Azure, Microsoft Entra ID, Exchange Online, Microsoft 365, or Cloudflare control-plane setting was changed. Secure local authentication and non-delivery email capture are active, and public HTTPS login was observed successfully through the existing Cloudflare route. Administrators can now configure and validate Microsoft authentication and Microsoft 365 SMTP from the application; provider secrets are write-only, encrypted at rest, and never returned to the browser.
 

@@ -40,7 +40,7 @@ The repository is a locally verified production release candidate. It includes:
 - English responsive UI for phone, tablet, and desktop;
 - native Ubuntu services under a dedicated `pwfleet` account, systemd web/worker units, PostgreSQL TLS, ClamAV, production preflight, backup tooling, and an optional container topology for other environments.
 
-No real production deployment has been performed. Production credentials, the approved identity provider and SMTP relay, a TLS-enabled PostgreSQL target, DNS/TLS, an observed backup restoration, and City of Harvey user acceptance remain external release gates. See [Release Status](docs/RELEASE_STATUS.md), [Production Runbook](docs/PRODUCTION_RUNBOOK.md), and [Release Checklist](docs/RELEASE_CHECKLIST.md).
+A native Ubuntu production environment is active for controlled operational testing with local authentication and capture-only email. Microsoft Entra ID, the approved SMTP relay, an observed off-host backup restoration, and City of Harvey user acceptance remain external organizational go-live gates. See [Release Status](docs/RELEASE_STATUS.md), [Production Runbook](docs/PRODUCTION_RUNBOOK.md), and [Release Checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Local development
 
