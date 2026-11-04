@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     typedEnv: true,
+    // Next 16.4's shared Turbopack bootstrap is emitted without the request
+    // nonce and is blocked by the enforced strict CSP, preventing hydration.
+    turbopackSharedRuntime: false,
   },
   async headers() {
     return [
