@@ -89,10 +89,12 @@ fi
 runuser -u pwfleet --preserve-environment -- ./node_modules/.bin/tsx src/db/production-readiness.ts
 
 systemctl daemon-reload
-systemctl enable --now pwfleet.service pwfleet-worker.timer pwfleet-backup.timer pwfleet-healthcheck.timer
+systemctl enable pwfleet.service pwfleet-worker.timer pwfleet-backup.timer pwfleet-healthcheck.timer
+systemctl start pwfleet.service
 
 for attempt in {1..30}; do
   if curl --fail --silent --show-error http://127.0.0.1:3000/api/ready >/dev/null; then
+    systemctl start pwfleet-worker.timer pwfleet-backup.timer pwfleet-healthcheck.timer
     echo "Native deployment readiness check passed."
     exit 0
   fi
