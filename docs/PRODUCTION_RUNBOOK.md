@@ -15,6 +15,8 @@ PW Fleet worker -> capture mode or approved Microsoft SMTP
 
 The application runs as the unprivileged `pwfleet` system account. The checkout is `/opt/pwfleet`; the root-managed environment is `/etc/pwfleet/app.env`. The service binds only to loopback. Cloudflare owns the public HTTPS edge and forwards to `http://localhost:3000`.
 
+`/etc/pwfleet` is traversable only by root and the `pwfleet` group. The deployment keeps `app.env` root-only and grants the service account read-only access to the configured database CA certificate. A CA stored outside `/etc/pwfleet` must already be readable by `pwfleet`; the deployment will validate it without changing permissions outside its managed configuration directory.
+
 ## 2. Bootstrap configuration
 
 Keep machine and secret material outside Git. The protected environment supplies the HTTPS base URL, database TLS connection, root encryption secret, storage limits, proxy trust, ClamAV socket, and safe bootstrap modes:

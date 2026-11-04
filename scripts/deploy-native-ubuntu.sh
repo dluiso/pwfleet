@@ -49,7 +49,7 @@ install -o root -g root -m 0644 deploy/native/pwfleet-backup.service /etc/system
 install -o root -g root -m 0644 deploy/native/pwfleet-backup.timer /etc/systemd/system/pwfleet-backup.timer
 install -o root -g root -m 0644 deploy/native/pwfleet-healthcheck.service /etc/systemd/system/pwfleet-healthcheck.service
 install -o root -g root -m 0644 deploy/native/pwfleet-healthcheck.timer /etc/systemd/system/pwfleet-healthcheck.timer
-install -d -o root -g root -m 0700 /etc/pwfleet
+install -d -o root -g pwfleet -m 0710 /etc/pwfleet
 if [[ ! -e /etc/pwfleet/backup.env ]]; then
   install -o root -g root -m 0600 deploy/native/backup.env.example /etc/pwfleet/backup.env
 fi
@@ -61,6 +61,23 @@ set -a
 # The protected file is controlled by root and must remain valid shell environment syntax.
 source "$app_env"
 set +a
+
+if [[ -z "${DATABASE_SSL_CA_FILE:-}" || ! -f "$DATABASE_SSL_CA_FILE" ]]; then
+  echo "DATABASE_SSL_CA_FILE must reference an existing CA certificate." >&2
+  exit 1
+fi
+
+case "$DATABASE_SSL_CA_FILE" in
+  /etc/pwfleet/*)
+    chown root:pwfleet "$DATABASE_SSL_CA_FILE"
+    chmod 0640 "$DATABASE_SSL_CA_FILE"
+    ;;
+esac
+
+if ! runuser -u pwfleet -- test -r "$DATABASE_SSL_CA_FILE"; then
+  echo "The pwfleet service account cannot read DATABASE_SSL_CA_FILE: $DATABASE_SSL_CA_FILE" >&2
+  exit 1
+fi
 
 pnpm production:config-check
 pnpm db:migrate
