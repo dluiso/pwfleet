@@ -224,6 +224,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .metadata-note strong { display: block; margin: 3px 0 8px; font-size: 11px; }
 .metadata-note p { margin: 3px 0; color: var(--muted); font-size: 9px; }
 .print-label-page { min-height: calc(100vh - 160px); display: grid; place-items: center; gap: 20px; padding: 20px; }
+.print-label-batch-page { align-content: start; }
+.print-label-batch { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(470px, 1fr)); justify-items: center; gap: 32px; }
 .print-controls { display: flex; gap: 8px; }
 .printable-qr-label { width: 470px; min-height: 670px; display: flex; flex-direction: column; align-items: center; padding: 33px; border: 3px solid var(--forest-950); border-radius: 18px; background: white; text-align: center; }
 .print-label-seal { width: 58px; height: 58px; display: grid; place-items: center; border: 3px double var(--forest-900); border-radius: 50%; color: var(--forest-900); font-family: Georgia, serif; font-size: 28px; font-weight: 700; }
@@ -443,7 +445,10 @@ textarea.field-control { resize: vertical; }
   .main-content { max-width: none; padding: 0; }
   .print-controls { display: none !important; }
   .print-label-page { min-height: 0; padding: 0; }
+  .print-label-batch { display: block; }
   .printable-qr-label { break-inside: avoid; }
+  .print-label-batch .printable-qr-label { break-after: page; margin: 0 auto; }
+  .print-label-batch .printable-qr-label:last-child { break-after: auto; }
 }
 
 .records-panel { overflow: hidden; }

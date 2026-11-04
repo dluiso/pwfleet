@@ -8,7 +8,7 @@ The repository is complete as a local Linux production release candidate. Curren
 
 - lint, TypeScript, all 43 unit tests, and the optimized Next.js standalone build pass locally and on the Ubuntu target;
 - configurable form-family creation, empty-draft rendering, and protected unused-draft deletion passed a local API/database lifecycle check with exact QA cleanup;
-- dependency audit reports no known vulnerability;
+- the production dependency audit reports no known vulnerability;
 - all 20 checksum-locked migrations are represented in the release;
 - critical safety-case, report-delivery, vehicle-dossier, notification, and retention QA cycles pass with cleanup;
 - all 15 findings from standard security scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused remediation verification;
@@ -19,6 +19,7 @@ The repository is complete as a local Linux production release candidate. Curren
 - local user administration now supports password creation/reset with session revocation, accurate authentication-state messaging, manager-scoped role protections, and controlled deletion of accounts without operational history.
 - the November dependency security refresh updates Next.js, Nodemailer, Sharp, Zod, Vitest, Vite, source-map-js, brace-expansion, and their lockfile graph so production dependencies have no known `pnpm audit --prod` findings; lint, type generation, all tests, and the standalone production build pass after the refresh. The full development audit retains one transitive `minimatch` advisory in the ESLint toolchain because the affected consumers still require the older API; a global major-version override was rejected after a focused compatibility reproduction demonstrated a real ESLint plugin regression.
 - production keeps Next.js 16.4's experimental shared Turbopack runtime disabled because its bootstrap script is emitted without the request nonce and the enforced CSP correctly blocks it, preventing React hydration. The ordinary Turbopack runtime preserves the strict nonce policy and restores interactive controls without allowing unsafe inline scripts.
+- the Fleet registry actions are operational: **Add vehicle** opens the administrative creation form directly, and **Print QR batch** renders every active fleet label on its own printable page instead of presenting inert controls.
 
 Responsive Chrome inspection confirmed the desktop dashboard, mobile navigation, QR-to-vehicle routing, blocked-vehicle messaging, and both source-form variants. It also led to corrections for blocked inspection launch and stale report-delivery copy. Browser acceptance after every framework upgrade must include an authenticated client interaction, not only server-rendered page visibility; CSP must never be weakened to make that check pass.
 

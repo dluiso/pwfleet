@@ -5,8 +5,8 @@ import {
   listAdministrationVehicles,
 } from "@/modules/administration/service";
 
-export default async function VehicleAdministrationPage({ searchParams }: { searchParams: Promise<{ assign?: string }> }) {
-  const { assign } = await searchParams;
+export default async function VehicleAdministrationPage({ searchParams }: { searchParams: Promise<{ assign?: string; create?: string }> }) {
+  const { assign, create } = await searchParams;
   const [vehicles, references, assignments] = await Promise.all([
     listAdministrationVehicles(),
     getAdministrationReferences(),
@@ -19,6 +19,7 @@ export default async function VehicleAdministrationPage({ searchParams }: { sear
       templates={references.templates}
       assignments={assignments}
       initialAssignmentVehicleId={assign}
+      initialCreateVehicle={create === "1"}
     />
   );
 }

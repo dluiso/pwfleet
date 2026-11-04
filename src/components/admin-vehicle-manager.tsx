@@ -98,22 +98,32 @@ export function AdminVehicleManager({
   templates,
   assignments,
   initialAssignmentVehicleId,
+  initialCreateVehicle = false,
 }: {
   vehicles: Vehicle[];
   classes: VehicleClass[];
   templates: Template[];
   assignments: Assignment[];
   initialAssignmentVehicleId?: string;
+  initialCreateVehicle?: boolean;
 }) {
   const router = useRouter();
   const initialAssignmentVehicle = initialAssignmentVehicleId
     ? vehicles.find((candidate) => candidate.id === initialAssignmentVehicleId) ?? null
     : null;
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<ModalState>(initialAssignmentVehicle ? { kind: "assignment", vehicle: initialAssignmentVehicle } : null);
+  const [modal, setModal] = useState<ModalState>(
+    initialAssignmentVehicle
+      ? { kind: "assignment", vehicle: initialAssignmentVehicle }
+      : initialCreateVehicle
+        ? { kind: "vehicle", vehicle: null }
+        : null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vehicleForm, setVehicleForm] = useState(emptyVehicle);
+  const [vehicleForm, setVehicleForm] = useState(() => (
+    initialCreateVehicle ? { ...emptyVehicle, vehicleClassId: classes[0]?.id ?? "" } : emptyVehicle
+  ));
   const [qrReason, setQrReason] = useState("");
   const [assignmentForm, setAssignmentForm] = useState({ templateId: templates[0]?.id ?? "", frequency: "before_first_departure", autoLaunch: true });
 
