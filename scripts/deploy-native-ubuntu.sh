@@ -29,6 +29,7 @@ if systemctl is-active --quiet pwfleet.service; then
 fi
 
 restore_previous_service() {
+  git restore --worktree -- next-env.d.ts || true
   if [[ "$service_was_active" -eq 1 ]] && ! systemctl is-active --quiet pwfleet.service; then
     systemctl start pwfleet.service || true
   fi
