@@ -24,7 +24,8 @@ export default defineConfig({
   ],
   webServer: externalBaseUrl ? undefined : {
     command: "pnpm dev",
-    url: "http://localhost:3000/api/live",
+    // Warm the first interactive page before parallel browser projects begin.
+    url: "http://localhost:3000/vehicles",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     stderr: "pipe",

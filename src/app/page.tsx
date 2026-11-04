@@ -16,6 +16,7 @@ import { vehicleLabel } from "@/lib/format";
 
 export default async function DashboardPage() {
   const dashboard = await getFleetDashboard();
+  const hasPublishedForms = dashboard.metrics.publishedForms > 0;
 
   return (
     <div className="page-stack">
@@ -89,17 +90,28 @@ export default async function DashboardPage() {
             <div className="panel-header compact"><div><span className="eyebrow">TODAY</span><h2>Action center</h2></div></div>
             <Link className="action-item" href="/vehicles?status=inspection_required">
               <span className="action-icon action-icon-blue"><ClipboardCheck size={18} /></span>
-              <div><strong>{dashboard.metrics.inspectionRequired} inspections due</strong><span>Before first departure</span></div>
+              <div className="action-copy"><strong>{dashboard.metrics.inspectionRequired} inspections due</strong><span>Before first departure</span></div>
               <ArrowRight size={16} />
             </Link>
             <Link className="action-item" href="/maintenance">
               <span className="action-icon action-icon-amber"><Wrench size={18} /></span>
-              <div><strong>{dashboard.metrics.openDefects} open defects</strong><span>Review maintenance queue</span></div>
+              <div className="action-copy"><strong>{dashboard.metrics.openDefects} open defects</strong><span>Review maintenance queue</span></div>
               <ArrowRight size={16} />
             </Link>
             <Link className="action-item" href="/settings/forms">
-              <span className="action-icon action-icon-red"><ShieldAlert size={18} /></span>
-              <div><strong>Safety rules are draft</strong><span>Approval required before production</span></div>
+              <span className={`action-icon ${hasPublishedForms ? "action-icon-green" : "action-icon-red"}`}>
+                {hasPublishedForms ? <CheckCircle2 size={18} /> : <ShieldAlert size={18} />}
+              </span>
+              <div className="action-copy">
+                <strong>{hasPublishedForms ? `${dashboard.metrics.publishedForms} published forms available` : "No published forms available"}</strong>
+                <span>
+                  {dashboard.metrics.draftForms > 0
+                    ? `${dashboard.metrics.draftForms} ${dashboard.metrics.draftForms === 1 ? "draft" : "drafts"} in progress`
+                    : hasPublishedForms
+                      ? "Ready for vehicle assignment"
+                      : "Publish a form before assignment"}
+                </span>
+              </div>
               <ArrowRight size={16} />
             </Link>
           </article>

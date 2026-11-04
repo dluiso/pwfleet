@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Search, Truck } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Search, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { vehicleLabel } from "@/lib/format";
 import { StatusBadge } from "./status-badge";
@@ -19,6 +19,12 @@ type VehicleDirectoryItem = {
   classCode: string;
   className: string;
   qrPublicId: string | null;
+  assignedForms: Array<{
+    templateId: string;
+    templateName: string;
+    templateVersion: number;
+    autoLaunch: boolean;
+  }>;
 };
 
 export function VehicleDirectory({ vehicles }: { vehicles: VehicleDirectoryItem[] }) {
@@ -79,6 +85,23 @@ export function VehicleDirectory({ vehicles }: { vehicles: VehicleDirectoryItem[
               <span>{vehicle.className}</span>
               <h2>{vehicleLabel(vehicle)}</h2>
               <p>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle details pending"}</p>
+            </div>
+            <div className={`vehicle-card-assignment ${vehicle.assignedForms.length ? "" : "vehicle-card-assignment-empty"}`}>
+              <ClipboardCheck size={17} />
+              <div>
+                <span>
+                  {vehicle.assignedForms.length === 0
+                    ? "Inspection assignment"
+                    : vehicle.assignedForms.length === 1
+                      ? "Assigned inspection"
+                      : "Assigned inspections"}
+                </span>
+                <strong>
+                  {vehicle.assignedForms.length
+                    ? `${vehicle.assignedForms[0]?.templateName ?? "Assigned form"}${vehicle.assignedForms.length > 1 ? ` +${vehicle.assignedForms.length - 1} more` : ""}`
+                    : "No form assigned"}
+                </strong>
+              </div>
             </div>
             <div className="vehicle-card-footer">
               <div><span>Unit</span><strong>{vehicle.unitNumber}</strong></div>

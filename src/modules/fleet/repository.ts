@@ -21,7 +21,7 @@ import { can, requirePermission } from "@/lib/auth";
 import { mayViewVehicleDocuments } from "./vehicle-documents";
 
 export async function getFleetDashboard() {
-  const [vehicleRows, activeDefectRows, recentSubmissionRows] = await Promise.all([
+  const [vehicleRows, activeDefectRows, recentSubmissionRows, formCountRows] = await Promise.all([
     db
       .select({
         id: vehicles.id,
@@ -61,6 +61,12 @@ export async function getFleetDashboard() {
       .where(sql`${inspectionSubmissions.submittedAt} is not null`)
       .orderBy(desc(inspectionSubmissions.submittedAt))
       .limit(8),
+    db
+      .select({
+        published: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'published')::int`,
+        drafts: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'draft')::int`,
+      })
+      .from(inspectionTemplates),
   ]);
 
   const defectsByVehicle = new Map(activeDefectRows.map((row) => [row.vehicleId, row]));
@@ -84,33 +90,78 @@ export async function getFleetDashboard() {
         (vehicle) => vehicle.disposition === "inspection_required",
       ).length,
       openDefects: activeDefectRows.reduce((total, row) => total + row.count, 0),
+      publishedForms: formCountRows[0]?.published ?? 0,
+      draftForms: formCountRows[0]?.drafts ?? 0,
     },
   };
 }
 
 export async function listVehicles() {
-  return db
-    .select({
-      id: vehicles.id,
-      unitNumber: vehicles.unitNumber,
-      displayCode: vehicles.displayCode,
-      make: vehicles.make,
-      model: vehicles.model,
-      year: vehicles.year,
-      currentOdometer: vehicles.currentOdometer,
-      lifecycleStatus: vehicles.lifecycleStatus,
-      disposition: vehicles.disposition,
-      classCode: vehicleClasses.code,
-      className: vehicleClasses.name,
-      qrPublicId: vehicleQrCodes.publicId,
-    })
-    .from(vehicles)
-    .innerJoin(vehicleClasses, eq(vehicles.vehicleClassId, vehicleClasses.id))
-    .leftJoin(
-      vehicleQrCodes,
-      and(eq(vehicleQrCodes.vehicleId, vehicles.id), eq(vehicleQrCodes.status, "active")),
-    )
-    .orderBy(asc(vehicles.displayCode), asc(vehicles.unitNumber));
+  const today = new Date().toISOString().slice(0, 10);
+  const [vehicleRows, assignmentRows] = await Promise.all([
+    db
+      .select({
+        id: vehicles.id,
+        unitNumber: vehicles.unitNumber,
+        displayCode: vehicles.displayCode,
+        make: vehicles.make,
+        model: vehicles.model,
+        year: vehicles.year,
+        currentOdometer: vehicles.currentOdometer,
+        lifecycleStatus: vehicles.lifecycleStatus,
+        disposition: vehicles.disposition,
+        classCode: vehicleClasses.code,
+        className: vehicleClasses.name,
+        qrPublicId: vehicleQrCodes.publicId,
+      })
+      .from(vehicles)
+      .innerJoin(vehicleClasses, eq(vehicles.vehicleClassId, vehicleClasses.id))
+      .leftJoin(
+        vehicleQrCodes,
+        and(eq(vehicleQrCodes.vehicleId, vehicles.id), eq(vehicleQrCodes.status, "active")),
+      )
+      .orderBy(asc(vehicles.displayCode), asc(vehicles.unitNumber)),
+    db
+      .select({
+        vehicleId: vehicleInspectionAssignments.vehicleId,
+        templateId: inspectionTemplates.id,
+        templateName: inspectionTemplates.name,
+        templateVersion: inspectionTemplates.version,
+        autoLaunch: vehicleInspectionAssignments.autoLaunch,
+      })
+      .from(vehicleInspectionAssignments)
+      .innerJoin(
+        inspectionTemplates,
+        eq(vehicleInspectionAssignments.templateId, inspectionTemplates.id),
+      )
+      .where(
+        and(
+          eq(inspectionTemplates.status, "published"),
+          lte(vehicleInspectionAssignments.effectiveFrom, today),
+          or(
+            isNull(vehicleInspectionAssignments.effectiveUntil),
+            gt(vehicleInspectionAssignments.effectiveUntil, today),
+          ),
+        ),
+      )
+      .orderBy(
+        asc(vehicleInspectionAssignments.vehicleId),
+        desc(vehicleInspectionAssignments.autoLaunch),
+        asc(inspectionTemplates.name),
+      ),
+  ]);
+
+  const assignmentsByVehicle = new Map<string, typeof assignmentRows>();
+  for (const assignment of assignmentRows) {
+    const current = assignmentsByVehicle.get(assignment.vehicleId) ?? [];
+    current.push(assignment);
+    assignmentsByVehicle.set(assignment.vehicleId, current);
+  }
+
+  return vehicleRows.map((vehicle) => ({
+    ...vehicle,
+    assignedForms: assignmentsByVehicle.get(vehicle.id) ?? [],
+  }));
 }
 
 export async function getVehicleById(id: string) {

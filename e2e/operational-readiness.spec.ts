@@ -4,6 +4,9 @@ test("fleet registry controls are interactive and accessible", async ({ page }) 
   await page.goto("/vehicles");
   await expect(page).toHaveTitle(/Fleet/);
   await expect(page.getByRole("heading", { name: "Vehicles", level: 1 })).toBeVisible();
+  const firstVehicleCard = page.locator(".vehicle-card").first();
+  await expect(firstVehicleCard.locator(".vehicle-card-assignment")).toBeVisible();
+  await expect(firstVehicleCard.locator(".vehicle-card-assignment strong")).not.toBeEmpty();
 
   const search = page.getByRole("textbox", { name: "Search vehicles" });
   await search.fill("no-such-vehicle-e2e");
@@ -16,6 +19,21 @@ test("fleet registry controls are interactive and accessible", async ({ page }) 
   await expect(page.getByLabel("Vehicle class *")).toHaveValue(/.+/);
   await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(page.getByRole("dialog", { name: "Add vehicle" })).toBeHidden();
+});
+
+test("dashboard action icons remain centered and form status is data driven", async ({ page }) => {
+  await page.goto("/");
+  const actionItems = page.locator(".action-item");
+  await expect(actionItems).toHaveCount(3);
+  await expect(actionItems.last()).toContainText(/published forms available|no published forms available/i);
+
+  const icon = actionItems.first().locator(".action-icon");
+  const svg = icon.locator("svg");
+  const [iconBox, svgBox] = await Promise.all([icon.boundingBox(), svg.boundingBox()]);
+  expect(iconBox).not.toBeNull();
+  expect(svgBox).not.toBeNull();
+  expect(Math.abs((iconBox!.x + iconBox!.width / 2) - (svgBox!.x + svgBox!.width / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs((iconBox!.y + iconBox!.height / 2) - (svgBox!.y + svgBox!.height / 2))).toBeLessThanOrEqual(1);
 });
 
 test("QR batch contains one printable label per active QR", async ({ page }) => {
