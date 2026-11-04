@@ -25,7 +25,27 @@ export type NotificationPayload = {
   documentName?: unknown;
   documentCategory?: unknown;
   expiresOn?: unknown;
+  defects?: unknown;
+  requiresSupervisorReview?: unknown;
 };
+
+type EmailDefect = { title: string; severity: string; blocksDeparture: boolean; comment: string; photoCount: number };
+
+function readDefects(value: unknown): EmailDefect[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const defect = entry as Record<string, unknown>;
+    if (typeof defect.title !== "string" || !defect.title.trim()) return [];
+    return [{
+      title: defect.title,
+      severity: readable(defect.severity, "Defect"),
+      blocksDeparture: defect.blocksDeparture === true,
+      comment: typeof defect.comment === "string" && defect.comment.trim() ? defect.comment : "No additional comment.",
+      photoCount: typeof defect.photoCount === "number" && Number.isFinite(defect.photoCount) ? Math.max(0, Math.floor(defect.photoCount)) : 0,
+    }];
+  });
+}
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -66,6 +86,8 @@ export function buildInspectionEmail(input: {
       ? new URL(`/api/inspections/${inspectionId}/pdf`, env.APP_BASE_URL).toString()
       : env.APP_BASE_URL;
   const vehicleCode = String(input.payload.vehicleCode ?? "Vehicle");
+  const defects = readDefects(input.payload.defects);
+  const requiresSupervisorReview = input.payload.requiresSupervisorReview === true;
   const disposition = readable(input.payload.disposition, "Pending review");
   const severity = readable(input.payload.severity, "Not classified");
   const submittedAt = typeof input.payload.submittedAt === "string"
@@ -73,7 +95,7 @@ export function buildInspectionEmail(input: {
     : "Not available";
 
   const caseStatus = readable(input.payload.caseStatus, "Pending review");
-  const heading = documentExpiration ? "Vehicle document expiration" : reportDelivery ? "Scheduled fleet report" : critical ? "Critical vehicle safety alert" : safetyCaseEscalation ? "Vehicle safety escalation" : safetyCaseUpdate ? "Vehicle safety case update" : "Vehicle inspection review";
+  const heading = documentExpiration ? "Vehicle document expiration" : reportDelivery ? "Scheduled fleet report" : critical ? "Critical vehicle safety alert" : safetyCaseEscalation ? "Vehicle safety escalation" : safetyCaseUpdate ? "Vehicle safety case update" : defects.length || requiresSupervisorReview ? "Vehicle inspection requires attention" : "Vehicle inspection submitted";
   const instruction = documentExpiration
     ? String(input.payload.notificationBody ?? "A controlled vehicle document requires attention.")
     : reportDelivery
@@ -88,10 +110,23 @@ export function buildInspectionEmail(input: {
         : input.payload.caseStatus === "awaiting_reinspection"
           ? "Repairs were recorded. The vehicle remains unavailable until reinspection and supervisor release are complete."
           : "The vehicle remains under controlled review. Follow the recorded case status before operating or servicing it."
-      : "Review the inspection outcome and any reported defects before the vehicle is released.";
+      : defects.length
+        ? "Review the reported defects before confirming the vehicle disposition."
+        : requiresSupervisorReview
+          ? "This inspection requires supervisor review before confirming the vehicle disposition."
+        : "The inspection was submitted with no reported defects. Review the attached controlled record.";
+
+  const defectText = defects.length
+    ? [
+        "",
+        `ATTENTION REQUIRED - ${defects.length} REPORTED ${defects.length === 1 ? "DEFECT" : "DEFECTS"}`,
+        ...defects.map((defect, index) => `${index + 1}. [${defect.severity.toUpperCase()}] ${defect.title}${defect.blocksDeparture ? " - DEPARTURE BLOCKED" : ""}: ${defect.comment}${defect.photoCount ? ` (${defect.photoCount} photo${defect.photoCount === 1 ? "" : "s"})` : ""}`),
+      ]
+    : [];
 
   const text = [
     heading,
+    ...defectText,
     "",
     `Vehicle: ${vehicleCode}`,
     ...(documentExpiration
@@ -107,12 +142,17 @@ export function buildInspectionEmail(input: {
   ].join("\n");
 
   const accent = critical ? "#a23732" : "#17634d";
+  const defectHtml = defects.length ? `<div style="margin-top:16px;padding:14px 15px;border:1px solid #e7b6b2;border-radius:8px;background:#fff0ef">
+<div style="color:#a23732;font-size:13px;font-weight:800">ATTENTION REQUIRED - ${defects.length} REPORTED ${defects.length === 1 ? "DEFECT" : "DEFECTS"}</div>
+${defects.map((defect, index) => `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0cecb"><div style="font-size:12px;font-weight:800;color:#8f302c">${index + 1}. ${escapeHtml(defect.severity)} - ${escapeHtml(defect.title)}${defect.blocksDeparture ? " - DEPARTURE BLOCKED" : ""}</div><div style="margin-top:4px;font-size:12px;color:#5d6d68">${escapeHtml(defect.comment)}${defect.photoCount ? ` &middot; ${defect.photoCount} photo${defect.photoCount === 1 ? "" : "s"}` : ""}</div></div>`).join("")}
+</div>` : "";
   const html = `<!doctype html>
 <html lang="en"><body style="margin:0;background:#f3f6f4;font-family:Arial,sans-serif;color:#17211e">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#fff;border:1px solid #d9e1de;border-radius:12px;overflow:hidden">
 <tr><td style="padding:20px 24px;background:#123f36;color:#fff"><div style="font-size:11px;letter-spacing:1px">CITY OF HARVEY PUBLIC WORKS</div><div style="margin-top:5px;font-size:23px;font-weight:700">${escapeHtml(heading)}</div></td></tr>
-<tr><td style="padding:22px 24px"><div style="padding:13px 15px;border-left:4px solid ${accent};background:${critical ? "#fff0ef" : "#eaf6f0"};font-weight:700">${escapeHtml(instruction)}</div>
+<tr><td style="padding:22px 24px"><div style="padding:13px 15px;border-left:4px solid ${accent};background:${critical || defects.length ? "#fff0ef" : "#eaf6f0"};font-weight:700">${escapeHtml(instruction)}</div>
+${defectHtml}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;border-collapse:collapse">
 ${(documentExpiration ? [
   ["Vehicle", vehicleCode],

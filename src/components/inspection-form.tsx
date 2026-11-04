@@ -73,11 +73,13 @@ function subscribeToConnectivity(onChange: () => void) {
 
 export function InspectionForm({
   actorId,
+  maxPhotoBytes,
   vehicle,
   template,
   qrCodeId,
 }: {
   actorId: string;
+  maxPhotoBytes: number;
   vehicle: { id: string; label: string; description: string; disposition: string; currentOdometer: number | null };
   template: { id: string; name: string; version: number; ruleSetStatus: string; sections: FormSection[]; rules: DefectRule[] };
   qrCodeId?: string;
@@ -307,7 +309,7 @@ export function InspectionForm({
                   <div className="defect-evidence">
                     {defectRule.blockDeparture ? <div className="blocking-rule-warning"><ShieldAlert size={17} /><span>This condition blocks vehicle departure and requires supervisor review.</span></div> : null}
                     <label><span>Defect comment{defectRule.requireComment ? " *" : ""}</span><textarea value={answer.comment} onChange={(event) => updateAnswer(item.id, { comment: event.target.value })} placeholder="Describe what you observed…" rows={3} /></label>
-                    <PhotoUpload value={answer.photos} onChange={(photos) => updateAnswer(item.id, { photos })} onUploadingChange={(uploading) => setUploadingCount((count) => Math.max(0, count + (uploading ? 1 : -1)))} />
+                    <PhotoUpload maxBytes={maxPhotoBytes} value={answer.photos} onChange={(photos) => updateAnswer(item.id, { photos })} onUploadingChange={(uploading) => setUploadingCount((count) => Math.max(0, count + (uploading ? 1 : -1)))} />
                   </div>
                 ) : null}
               </div>

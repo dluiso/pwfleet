@@ -179,14 +179,12 @@ export async function submitInspection(rawInput: unknown) {
   }
 
   const attachmentIds = [...new Set(input.answers.flatMap((answer) => answer.photoReferences ?? []))];
-  const recipientRoles: Array<typeof users.$inferSelect.role> = ["supervisor", "fleet_manager"];
+  const recipientRoles: Array<typeof users.$inferSelect.role> = ["supervisor", "fleet_manager", "administrator"];
   if (evaluation.notifyMaintenance) recipientRoles.push("maintenance_technician");
-  const recipients = evaluation.notifySupervisor || evaluation.notifyMaintenance
-    ? await db
-        .select()
-        .from(users)
-        .where(and(eq(users.active, true), inArray(users.role, recipientRoles)))
-    : [];
+  const recipients = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.active, true), inArray(users.role, recipientRoles)));
 
   return db.transaction(async (transaction) => {
     const [vehicle] = await transaction
@@ -345,6 +343,15 @@ export async function submitInspection(rawInput: unknown) {
 
     const displayCode = vehicle.displayCode ?? `Unit ${vehicle.unitNumber}`;
     const eventKey = `inspection:${submission!.id}`;
+    const defectSummaries = evaluation.answers
+      .filter((answer) => answer.createsDefect)
+      .map((answer) => ({
+        title: answer.label,
+        severity: answer.severity,
+        blocksDeparture: answer.blocksDeparture,
+        comment: answer.comment?.trim() || "No additional comment.",
+        photoCount: answer.photoReferences?.length ?? 0,
+      }));
     const commonPayload = {
       inspectionId: submission!.id,
       vehicleId: vehicle.id,
@@ -354,16 +361,22 @@ export async function submitInspection(rawInput: unknown) {
       disposition: finalDisposition,
       submittedBy: actor.displayName,
       submittedAt: new Date().toISOString(),
+      defects: defectSummaries,
+      requiresSupervisorReview: evaluation.requiresSupervisorReview,
     };
 
-    const notificationRecipients = evaluation.notifyDriver
-      ? [actor, ...recipients.filter((recipient) => recipient.id !== actor.id)]
-      : recipients;
+    const notificationRecipients = [...new Map([
+      ...recipients,
+      ...(evaluation.notifyDriver ? [actor] : []),
+    ].map((recipient) => [recipient.id, recipient])).values()];
     for (const recipient of notificationRecipients) {
       const critical = evaluation.severity === "critical";
+      const requiresAttention = defectSummaries.length > 0 || evaluation.requiresSupervisorReview;
       const subject = critical
         ? `CRITICAL VEHICLE ALERT - ${displayCode}`
-        : `Vehicle inspection review - ${displayCode}`;
+        : requiresAttention
+          ? `Vehicle inspection requires attention - ${displayCode}`
+          : `Vehicle inspection submitted - ${displayCode}`;
       await transaction
         .insert(notificationOutbox)
         .values({
@@ -373,7 +386,7 @@ export async function submitInspection(rawInput: unknown) {
           urgency: critical ? "critical" : "normal",
           subject,
           templateKey:
-            evaluation.severity === "critical" ? "critical_vehicle_alert" : "inspection_review",
+            critical ? "critical_vehicle_alert" : requiresAttention ? "inspection_attention" : "inspection_submitted",
           payload: commonPayload,
         })
         .onConflictDoNothing();
@@ -385,7 +398,11 @@ export async function submitInspection(rawInput: unknown) {
         title: subject,
         body: critical
           ? "Do not operate this vehicle. A responsible supervisor must review the inspection and disposition."
-          : "An inspection requires operational review before the vehicle status is considered final.",
+          : requiresAttention
+            ? defectSummaries.length
+              ? `${defectSummaries.length} reported ${defectSummaries.length === 1 ? "defect requires" : "defects require"} review before confirming the vehicle disposition.`
+              : "This inspection requires supervisor review before confirming the vehicle disposition."
+            : "The inspection was submitted with no reported defects and is available as a controlled PDF record.",
         href: "/inspections",
         requiresAcknowledgment: critical,
       }).onConflictDoNothing();

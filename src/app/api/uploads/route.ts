@@ -7,7 +7,7 @@ import { db } from "@/db/client";
 import { AuthorizationError, can, getCurrentActor } from "@/lib/auth";
 import { getEnvironment } from "@/lib/env";
 import { hasSameOrigin, sameOriginError } from "@/lib/http-security";
-import { MalwareDetectedError, scanBufferForMalware } from "@/lib/malware-scan";
+import { MalwareDetectedError, MalwareScannerUnavailableError, scanBufferForMalware } from "@/lib/malware-scan";
 import { enforceActorRateLimit, enforceRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { acquireUploadProcessingLease, assertStorageCapacity, UploadCapacityError } from "@/lib/upload-admission";
 
@@ -15,8 +15,6 @@ const acceptedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
 ]);
 
 function safeOriginalName(name: string): string {
@@ -25,6 +23,7 @@ function safeOriginalName(name: string): string {
 }
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
   if (!hasSameOrigin(request)) return sameOriginError();
   const rateLimit = await enforceRateLimit(request, "file.upload", 30, 600);
   if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "An image file is required." }, { status: 400 });
   }
   if (!acceptedMimeTypes.has(file.type)) {
-    return Response.json({ error: "Only JPEG, PNG, WebP, HEIC, and HEIF images are accepted." }, { status: 415 });
+    return Response.json({ error: "Only JPEG, PNG, and WebP images are accepted after device preparation." }, { status: 415 });
   }
   if (file.size <= 0 || file.size > env.UPLOAD_MAX_BYTES) {
     return Response.json(
@@ -69,7 +68,17 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UploadCapacityError) return Response.json({ error: error.message }, { status: error.status });
     if (error instanceof MalwareDetectedError) return Response.json({ error: error.message }, { status: 422 });
-    return Response.json({ error: "The uploaded file is not a valid supported image." }, { status: 422 });
+    if (error instanceof MalwareScannerUnavailableError) {
+      return Response.json({ error: "Photo security scanning is temporarily unavailable. Try again.", requestId }, { status: 503 });
+    }
+    console.warn("Photo upload processing rejected", {
+      requestId,
+      actorId: actor.id,
+      mimeType: file.type,
+      byteSize: file.size,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return Response.json({ error: "The uploaded file is not a valid supported image.", requestId }, { status: 422 });
   }
 
   const date = new Date();
@@ -112,11 +121,17 @@ export async function POST(request: Request) {
         name: safeOriginalName(file.name),
         mimeType: "image/jpeg",
         byteSize: processed.byteLength,
+        requestId,
       },
       { status: 201 },
     );
   } catch (error) {
     await fs.unlink(destination).catch(() => undefined);
+    console.error("Photo upload persistence failed", {
+      requestId,
+      actorId: actor.id,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     throw error;
   }
   } finally {

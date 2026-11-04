@@ -76,6 +76,42 @@ describe("inspection email", () => {
     expect(email.html).toContain("Clean reinspection verified.");
   });
 
+  it("puts reported defects before routine inspection details", () => {
+    const email = buildInspectionEmail({
+      templateKey: "inspection_attention",
+      subject: "Inspection requires attention",
+      payload: {
+        inspectionId: "2f0795ef-0ad1-483a-bb8c-a9f5ee8bad33",
+        vehicleCode: "DT-04",
+        templateName: "Dump Truck Pre-Trip Inspection",
+        defects: [{
+          title: "Brake system <unsafe>",
+          severity: "critical",
+          blocksDeparture: true,
+          comment: "Air leak detected.",
+          photoCount: 2,
+        }],
+      },
+    });
+
+    expect(email.text.indexOf("ATTENTION REQUIRED")).toBeLessThan(email.text.indexOf("Vehicle: DT-04"));
+    expect(email.text).toContain("DEPARTURE BLOCKED");
+    expect(email.text).toContain("(2 photos)");
+    expect(email.html).toContain("Brake system &lt;unsafe&gt;");
+    expect(email.html).not.toContain("Brake system <unsafe>");
+  });
+
+  it("renders a normal submission message when no defects were reported", () => {
+    const email = buildInspectionEmail({
+      templateKey: "inspection_submitted",
+      subject: "Inspection submitted",
+      payload: { vehicleCode: "Unit 20", defects: [] },
+    });
+
+    expect(email.text).toContain("no reported defects");
+    expect(email.text).not.toContain("ATTENTION REQUIRED");
+  });
+
   it("rejects credential-bearing delivery to a non-Microsoft SMTP host", async () => {
     await expect(createSmtpTransportForConfiguration({ mode: "smtp", host: "mail.attacker.invalid", port: 587, secure: false, authMode: "password", username: "fleet@example.gov", password: "stored-secret", oauthTenantId: null, oauthClientId: null, oauthClientSecret: null, from: "fleet@example.gov" })).rejects.toThrow(/approved Microsoft endpoint/);
   });

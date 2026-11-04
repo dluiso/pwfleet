@@ -3,6 +3,7 @@ import { InspectionForm } from "@/components/inspection-form";
 import { getTemplateDefinition, getVehicleById } from "@/modules/fleet/repository";
 import { vehicleLabel } from "@/lib/format";
 import { getCurrentActor } from "@/lib/auth";
+import { getEnvironment } from "@/lib/env";
 
 export default async function NewInspectionPage({
   searchParams,
@@ -18,10 +19,12 @@ export default async function NewInspectionPage({
   ]);
   if (!vehicle || !template) notFound();
   if (!vehicle.assignments.some((assignment) => assignment.templateId === template.id)) notFound();
+  const maxPhotoBytes = getEnvironment().UPLOAD_MAX_BYTES;
 
   return (
     <InspectionForm
       actorId={actor.id}
+      maxPhotoBytes={maxPhotoBytes}
       vehicle={{
         id: vehicle.id,
         label: vehicleLabel(vehicle),

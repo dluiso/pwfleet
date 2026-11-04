@@ -1,7 +1,9 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  attachments,
   defects,
+  inspectionAnswerAttachments,
   inspectionAnswers,
   inspectionItems,
   inspectionSections,
@@ -22,11 +24,12 @@ export class ReportNotFoundError extends Error {
   }
 }
 
-export async function listInspectionReports(limit = 100) {
+export async function listInspectionReports(limit = 50, offset = 0) {
   const actor = await getCurrentActor();
   const safeLimit = Math.min(Math.max(limit, 1), 250);
+  const safeOffset = Math.max(offset, 0);
 
-  return db
+  const reportRows = await db
     .select({
       id: inspectionSubmissions.id,
       status: inspectionSubmissions.status,
@@ -55,7 +58,45 @@ export async function listInspectionReports(limit = 100) {
         : eq(inspectionSubmissions.inspectorUserId, actor.id),
     )
     .orderBy(desc(inspectionSubmissions.submittedAt))
-    .limit(safeLimit);
+    .limit(safeLimit)
+    .offset(safeOffset);
+
+  if (!reportRows.length) return [];
+  const defectCounts = await db
+    .select({
+      submissionId: defects.submissionId,
+      defectCount: sql<number>`count(*)::int`,
+      blockingDefectCount: sql<number>`sum(case when ${defects.blocksDeparture} then 1 else 0 end)::int`,
+    })
+    .from(defects)
+    .where(inArray(defects.submissionId, reportRows.map((report) => report.id)))
+    .groupBy(defects.submissionId);
+  const countsBySubmission = new Map(defectCounts.map((count) => [count.submissionId, count]));
+
+  return reportRows
+    .map((report) => ({
+      ...report,
+      defectCount: countsBySubmission.get(report.id)?.defectCount ?? 0,
+      blockingDefectCount: countsBySubmission.get(report.id)?.blockingDefectCount ?? 0,
+    }))
+    .sort((left, right) => {
+      if (left.blockingDefectCount !== right.blockingDefectCount) return right.blockingDefectCount - left.blockingDefectCount;
+      if (left.defectCount !== right.defectCount) return right.defectCount - left.defectCount;
+      return (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0);
+    });
+}
+
+export async function countInspectionReports() {
+  const actor = await getCurrentActor();
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(inspectionSubmissions)
+    .where(
+      can(actor, "reports:read")
+        ? undefined
+        : eq(inspectionSubmissions.inspectorUserId, actor.id),
+    );
+  return result?.count ?? 0;
 }
 
 export async function getMaintenanceReportSnapshot() {
@@ -78,8 +119,7 @@ export async function getMaintenanceReportSnapshot() {
   };
 }
 
-export async function getInspectionReport(inspectionId: string) {
-  const actor = await getCurrentActor();
+async function loadInspectionReport(inspectionId: string) {
   const rows = await db
     .select({
       id: inspectionSubmissions.id,
@@ -118,11 +158,9 @@ export async function getInspectionReport(inspectionId: string) {
     .limit(1);
 
   const report = rows[0];
-  if (!report || (!can(actor, "reports:read") && report.inspectorId !== actor.id)) {
-    throw new ReportNotFoundError();
-  }
+  if (!report) throw new ReportNotFoundError();
 
-  const [answerRows, defectRows] = await Promise.all([
+  const [answerRows, defectRows, photoRows] = await Promise.all([
     db
       .select({
         id: inspectionAnswers.id,
@@ -151,6 +189,7 @@ export async function getInspectionReport(inspectionId: string) {
     db
       .select({
         id: defects.id,
+        answerId: defects.answerId,
         title: defects.title,
         description: defects.description,
         severity: defects.severity,
@@ -160,7 +199,27 @@ export async function getInspectionReport(inspectionId: string) {
       .from(defects)
       .where(eq(defects.submissionId, inspectionId))
       .orderBy(desc(defects.blocksDeparture), asc(defects.title)),
+    db
+      .select({
+        answerId: inspectionAnswers.id,
+        id: attachments.id,
+        originalName: attachments.originalName,
+        mimeType: attachments.mimeType,
+        storageKey: attachments.storageKey,
+      })
+      .from(inspectionAnswerAttachments)
+      .innerJoin(inspectionAnswers, eq(inspectionAnswerAttachments.inspectionAnswerId, inspectionAnswers.id))
+      .innerJoin(attachments, eq(inspectionAnswerAttachments.attachmentId, attachments.id))
+      .where(eq(inspectionAnswers.submissionId, inspectionId))
+      .orderBy(asc(inspectionAnswerAttachments.createdAt)),
   ]);
+
+  const photosByAnswer = new Map<string, typeof photoRows>();
+  for (const photo of photoRows) {
+    const photos = photosByAnswer.get(photo.answerId) ?? [];
+    photos.push(photo);
+    photosByAnswer.set(photo.answerId, photos);
+  }
 
   const sections = new Map<
     string,
@@ -180,6 +239,23 @@ export async function getInspectionReport(inspectionId: string) {
   return {
     ...report,
     sections: [...sections.values()].sort((a, b) => a.order - b.order),
-    defects: defectRows,
+    defects: defectRows.map((defect) => ({
+      ...defect,
+      photos: defect.answerId ? photosByAnswer.get(defect.answerId) ?? [] : [],
+    })),
   };
+}
+
+export async function getInspectionReport(inspectionId: string) {
+  const actor = await getCurrentActor();
+  const report = await loadInspectionReport(inspectionId);
+  if (!can(actor, "reports:read") && report.inspectorId !== actor.id) {
+    throw new ReportNotFoundError();
+  }
+  return report;
+}
+
+/** Internal notification-worker access. The outbox only supplies persisted inspection IDs. */
+export async function getInspectionReportForDelivery(inspectionId: string) {
+  return loadInspectionReport(inspectionId);
 }

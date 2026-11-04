@@ -6,8 +6,11 @@ import type { Transporter } from "nodemailer";
 import { db, pool } from "@/db/client";
 import { notificationOutbox, reportArtifacts, reportDeliveries } from "@/db/schema";
 import { getEnvironment } from "@/lib/env";
+import { vehicleLabel } from "@/lib/format";
 import { buildInspectionEmail, createSmtpTransportForConfiguration } from "./email";
 import { getRuntimeEmailConfiguration, type EmailRuntimeConfiguration } from "@/modules/integrations/settings";
+import { getInspectionReportForDelivery } from "@/modules/reports/repository";
+import { renderInspectionPdf } from "@/modules/reports/inspection-pdf";
 
 const workerLockKey = 1_938_220_419;
 
@@ -76,6 +79,24 @@ async function deliverOne(
       .where(eq(notificationOutbox.id, item.id));
     await updateReportDelivery("captured", null, sentAt);
     return "captured" as const;
+  }
+
+  const inspectionId = typeof item.payload.inspectionId === "string" ? item.payload.inspectionId : null;
+  if (!reportAttachment && inspectionId) {
+    try {
+      const report = await getInspectionReportForDelivery(inspectionId);
+      const baseName = `${vehicleLabel(report)}-${report.templateName}`
+        .replace(/[^a-zA-Z0-9._-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 120) || "inspection-report";
+      reportAttachment = {
+        filename: `${baseName}.pdf`,
+        content: await renderInspectionPdf(report),
+        contentType: "application/pdf",
+      };
+    } catch {
+      return recordFailure("Inspection PDF could not be generated.");
+    }
   }
 
   if (!transporter || !email.from) {

@@ -1,11 +1,18 @@
 import Link from "next/link";
-import { Download, FileText, QrCode } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileText, QrCode, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
-import { formatDateTime, formatEnum, vehicleLabel } from "@/lib/format";
-import { listInspectionReports } from "@/modules/reports/repository";
+import { formatDateTime, vehicleLabel } from "@/lib/format";
+import { countInspectionReports, listInspectionReports } from "@/modules/reports/repository";
 
-export default async function InspectionsPage() {
-  const reports = await listInspectionReports();
+const pageSize = 50;
+
+export default async function InspectionsPage({ searchParams }: PageProps<"/inspections">) {
+  const params = await searchParams;
+  const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
+  const totalReports = await countInspectionReports();
+  const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
+  const page = Math.min(Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1, totalPages);
+  const reports = await listInspectionReports(pageSize, (page - 1) * pageSize);
 
   return (
     <div className="page-stack">
@@ -23,7 +30,7 @@ export default async function InspectionsPage() {
       <section className="panel records-panel">
         <div className="panel-header">
           <div><span className="eyebrow">RECENT</span><h2>Inspection records</h2></div>
-          <span className="record-count">{reports.length} records</span>
+          <span className="record-count">{totalReports} records</span>
         </div>
         {reports.length ? (
           <div className="records-list">
@@ -33,7 +40,11 @@ export default async function InspectionsPage() {
                 <div className="record-main">
                   <strong>{vehicleLabel(report)} - {report.templateName}</strong>
                   <span>{formatDateTime(report.submittedAt)} by {report.inspectorName}</span>
-                  <small>Version {report.templateVersion} · {formatEnum(report.severity)} severity</small>
+                  {report.defectCount ? (
+                    <small className={report.blockingDefectCount ? "record-attention record-attention-blocking" : "record-attention"}>
+                      <TriangleAlert size={12} /> {report.defectCount} reported {report.defectCount === 1 ? "defect" : "defects"}{report.blockingDefectCount ? " · departure blocked" : ""}
+                    </small>
+                  ) : <small>Version {report.templateVersion} · No reported defects</small>}
                 </div>
                 <StatusBadge value={report.disposition} compact />
                 <a
@@ -53,6 +64,13 @@ export default async function InspectionsPage() {
             <p>Scan a vehicle QR code and submit its assigned form.</p>
           </div>
         )}
+        {totalPages > 1 ? (
+          <nav className="records-pagination" aria-label="Inspection record pages">
+            {page > 1 ? <Link className="button button-secondary button-small" href={`/inspections?page=${page - 1}`}><ChevronLeft size={15} /> Previous</Link> : <span />}
+            <span>Page {page} of {totalPages}</span>
+            {page < totalPages ? <Link className="button button-secondary button-small" href={`/inspections?page=${page + 1}`}>Next <ChevronRight size={15} /></Link> : <span />}
+          </nav>
+        ) : null}
       </section>
     </div>
   );

@@ -356,11 +356,18 @@ textarea.field-control { resize: vertical; }
 .defect-evidence label > span { display: block; margin-bottom: 5px; color: #6c3c38; font-size: 9px; font-weight: 750; }
 .defect-evidence textarea { width: 100%; padding: 9px 10px; resize: vertical; border: 1px solid #e4c9c7; border-radius: 8px; outline: 0; color: var(--ink); background: white; font-size: 10px; }
 .photo-button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px dashed #d7aca9; border-radius: 8px; color: #8b3d38; background: #fffafa; font-size: 9px; font-weight: 720; cursor: pointer; }
+.photo-upload-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-button-secondary { color: var(--forest-700); border-color: #b8cec5; background: #f7fbf9; }
+.photo-button:disabled { opacity: .55; cursor: not-allowed; }
 .photo-preview-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .photo-preview-list > div { position: relative; overflow: hidden; width: 98px; height: 80px; border-radius: 8px; background: #eee; }
 .photo-preview-list img { width: 100%; height: 100%; object-fit: cover; }
 .photo-preview-list span { position: absolute; inset: auto 4px 4px; display: flex; align-items: center; justify-content: center; gap: 3px; padding: 3px; border-radius: 4px; color: white; background: rgb(12 52 45 / 78%); font-size: 7px; }
 .photo-preview-list button { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 6px; color: white; background: rgb(118 36 31 / 84%); }
+.record-attention { display: flex; align-items: center; gap: 5px; width: fit-content; color: #8a5712 !important; font-weight: 760; }
+.record-attention-blocking { color: var(--red) !important; }
+.records-pagination { min-height: 58px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 9px; font-weight: 720; }
+.records-pagination > :last-child { justify-self: end; }
 .field-error { margin: 6px 0 0; color: var(--red); font-size: 9px; }
 .damage-map { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: #fbfcfb; }
 .damage-map-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 11px; border-bottom: 1px solid var(--line-soft); }

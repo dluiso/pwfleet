@@ -1,5 +1,8 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -7,10 +10,16 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import { withReportRenderSlot } from "./render-admission";
+import { getEnvironment } from "@/lib/env";
 import { formatDateTime, formatEnum, vehicleLabel } from "@/lib/format";
 import type { getInspectionReport } from "./repository";
 
 type InspectionReport = Awaited<ReturnType<typeof getInspectionReport>>;
+type RenderableInspectionReport = Omit<InspectionReport, "defects"> & {
+  defects: Array<Omit<InspectionReport["defects"][number], "photos"> & {
+    photos: Array<InspectionReport["defects"][number]["photos"][number] & { source?: string }>;
+  }>;
+};
 
 const colors = {
   forest: "#123f36",
@@ -36,6 +45,16 @@ const styles = StyleSheet.create({
   brand: { fontSize: 8, color: colors.green, letterSpacing: 1.1 },
   title: { marginTop: 5, fontSize: 19, fontFamily: "Helvetica-Bold", color: colors.forest },
   subtitle: { marginTop: 4, fontSize: 8, color: colors.muted },
+  attention: {
+    marginTop: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#e7b6b2",
+    borderRadius: 5,
+    backgroundColor: colors.redPale,
+  },
+  attentionTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", color: colors.red },
+  attentionText: { marginTop: 3, fontSize: 8, color: colors.red },
   summary: {
     marginTop: 16,
     padding: 12,
@@ -87,6 +106,8 @@ const styles = StyleSheet.create({
   },
   defectTitle: { fontFamily: "Helvetica-Bold", color: colors.red },
   defectText: { marginTop: 3, color: colors.muted },
+  defectPhotos: { marginTop: 7, flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  defectPhoto: { width: 112, height: 84, objectFit: "cover", borderRadius: 3 },
   footer: {
     position: "absolute",
     right: 38,
@@ -117,7 +138,7 @@ function displayResponse(response: unknown): string {
   return "Recorded";
 }
 
-function InspectionDocument({ report }: { report: InspectionReport }) {
+function InspectionDocument({ report }: { report: RenderableInspectionReport }) {
   const blocked = [
     "hold_for_review",
     "out_of_service",
@@ -134,6 +155,38 @@ function InspectionDocument({ report }: { report: InspectionReport }) {
         <Text style={styles.subtitle}>
           System record {report.id} - Generated from the fleet operations platform
         </Text>
+
+        {report.defects.length ? (
+          <View style={styles.attention} wrap={false}>
+            <Text style={styles.attentionTitle}>ATTENTION REQUIRED - {report.defects.length} REPORTED {report.defects.length === 1 ? "DEFECT" : "DEFECTS"}</Text>
+            <Text style={styles.attentionText}>
+              {report.defects.some((defect) => defect.blocksDeparture)
+                ? "One or more conditions block vehicle departure. Supervisor review is required before operation."
+                : "Review the reported conditions before confirming the vehicle disposition."}
+            </Text>
+          </View>
+        ) : null}
+
+        {report.defects.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Reported Defects - Priority Review</Text>
+            {report.defects.map((defect) => (
+              <View key={defect.id} style={styles.defect} wrap={false}>
+                <Text style={styles.defectTitle}>{formatEnum(defect.severity)} - {defect.title}{defect.blocksDeparture ? " - DEPARTURE BLOCKED" : ""}</Text>
+                <Text style={styles.defectText}>{defect.description || "No additional comment."} Status: {formatEnum(defect.status)}.</Text>
+                {defect.photos.some((photo) => photo.source) ? (
+                  <View style={styles.defectPhotos}>
+                    {defect.photos.map((photo) => {
+                      if (!photo.source) return null;
+                      // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image does not expose an alt prop.
+                      return <Image key={photo.id} src={photo.source} style={styles.defectPhoto} />;
+                    })}
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.summary} wrap={false}>
           <View style={styles.summaryRow}>
@@ -158,18 +211,6 @@ function InspectionDocument({ report }: { report: InspectionReport }) {
           <Text style={[styles.statusValue, ...(blocked ? [] : [styles.statusValueSafe])]}>Disposition: {formatEnum(report.disposition)}</Text>
           <Text>Status: {formatEnum(report.status)}</Text>
         </View>
-
-        {report.defects.length ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reported Defects</Text>
-            {report.defects.map((defect) => (
-              <View key={defect.id} style={styles.defect} wrap={false}>
-                <Text style={styles.defectTitle}>{formatEnum(defect.severity)} - {defect.title}{defect.blocksDeparture ? " - DEPARTURE BLOCKED" : ""}</Text>
-                <Text style={styles.defectText}>{defect.description || "No additional comment."} Status: {formatEnum(defect.status)}.</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         {report.sections.map((section) => (
           <View key={section.key} style={styles.section} wrap={section.answers.length > 10}>
@@ -197,5 +238,19 @@ function InspectionDocument({ report }: { report: InspectionReport }) {
 }
 
 export async function renderInspectionPdf(report: InspectionReport): Promise<Buffer> {
-  return withReportRenderSlot(() => renderToBuffer(<InspectionDocument report={report} />));
+  const root = path.resolve(getEnvironment().FILE_STORAGE_ROOT);
+  const defects = await Promise.all(report.defects.map(async (defect) => ({
+    ...defect,
+    photos: await Promise.all(defect.photos.map(async (photo) => {
+      const photoPath = path.resolve(root, photo.storageKey);
+      if (!photoPath.startsWith(`${root}${path.sep}`)) return photo;
+      try {
+        const bytes = await fs.readFile(photoPath);
+        return { ...photo, source: `data:${photo.mimeType};base64,${bytes.toString("base64")}` };
+      } catch {
+        return photo;
+      }
+    })),
+  })));
+  return withReportRenderSlot(() => renderToBuffer(<InspectionDocument report={{ ...report, defects }} />));
 }
