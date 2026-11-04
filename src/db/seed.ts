@@ -333,7 +333,15 @@ async function ensureTemplate(input: {
     .limit(1);
   if (existing[0]) return existing[0];
 
+  const [approver] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "administrator"), eq(users.active, true)))
+    .limit(1);
+  if (!approver) throw new Error("An active administrator is required before publishing the initial form catalog.");
+
   return db.transaction(async (transaction) => {
+    const now = new Date();
     const [template] = await transaction
       .insert(inspectionTemplates)
       .values({
@@ -342,9 +350,13 @@ async function ensureTemplate(input: {
         description: input.description,
         version: 1,
         status: "published",
-        effectiveFrom: new Date().toISOString().slice(0, 10),
-        publishedAt: new Date(),
-        ruleSetStatus: "draft",
+        effectiveFrom: now.toISOString().slice(0, 10),
+        publishedAt: now,
+        publishedByUserId: approver.id,
+        ruleSetStatus: "approved",
+        rulesApprovedAt: now,
+        rulesApprovedByUserId: approver.id,
+        reviewStatus: "approved",
       })
       .returning();
 

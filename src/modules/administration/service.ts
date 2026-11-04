@@ -243,7 +243,7 @@ export async function getPilotReadiness() {
       activeQr: sql<number>`count(*) filter (where ${vehicleQrCodes.status} = 'active')::int`,
     }).from(vehicles).leftJoin(vehicleQrCodes, and(eq(vehicleQrCodes.vehicleId, vehicles.id), eq(vehicleQrCodes.status, "active"))),
     db.select({
-      assignable: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'published' and ${inspectionTemplates.ruleSetStatus} = 'approved' and ${inspectionTemplates.reviewStatus} = 'approved')::int`,
+      assignable: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'published')::int`,
       pendingReview: sql<number>`count(*) filter (where ${inspectionTemplates.reviewStatus} = 'in_review')::int`,
       draftOrChanges: sql<number>`count(*) filter (where ${inspectionTemplates.status} = 'draft' or ${inspectionTemplates.reviewStatus} = 'changes_requested')::int`,
     }).from(inspectionTemplates),
@@ -256,8 +256,6 @@ export async function getPilotReadiness() {
       .where(and(
         eq(vehicles.lifecycleStatus, "active"),
         eq(inspectionTemplates.status, "published"),
-        eq(inspectionTemplates.ruleSetStatus, "approved"),
-        eq(inspectionTemplates.reviewStatus, "approved"),
         lte(vehicleInspectionAssignments.effectiveFrom, today),
         or(isNull(vehicleInspectionAssignments.effectiveUntil), sql`${vehicleInspectionAssignments.effectiveUntil} >= ${today}`),
       )),
@@ -308,7 +306,7 @@ export async function getAdministrationReferences() {
         ruleSetStatus: inspectionTemplates.ruleSetStatus,
       })
       .from(inspectionTemplates)
-      .where(and(eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved"), eq(inspectionTemplates.reviewStatus, "approved")))
+      .where(eq(inspectionTemplates.status, "published"))
       .orderBy(asc(inspectionTemplates.name)),
   ]);
   return { classes, templates };
@@ -956,27 +954,12 @@ export async function transitionTemplateWorkflow(templateId: string, rawInput: u
 
   if (input.action === "publish") {
     const actor = await requirePermission("configuration:manage");
-    if (actor.role !== "administrator") throw new AdministrationError("Only an administrator can publish an approved form version.", 403);
+    if (actor.role !== "administrator") throw new AdministrationError("Only an administrator can publish a form version.", 403);
     return db.transaction(async (transaction) => {
       const [template] = await transaction.select().from(inspectionTemplates).where(eq(inspectionTemplates.id, templateId)).for("update").limit(1);
       if (!template) throw new AdministrationError("Inspection template not found.", 404);
-      if (template.status !== "draft" || template.reviewStatus !== "approved" || !template.reviewDefinitionHash) {
-        throw new AdministrationError("The draft requires both current approvals before publication.", 409);
-      }
+      if (template.status !== "draft") throw new AdministrationError("Only a draft form version can be published.", 409);
       const snapshot = await getValidatedDefinitionSnapshot(templateId);
-      if (snapshot.hash !== template.reviewDefinitionHash) throw new AdministrationError("The approved definition hash no longer matches the draft.", 409);
-      const approvals = await transaction
-        .select({ lane: inspectionTemplateReviews.reviewLane })
-        .from(inspectionTemplateReviews)
-        .where(and(
-          eq(inspectionTemplateReviews.templateId, templateId),
-          eq(inspectionTemplateReviews.reviewRound, template.reviewRound),
-          eq(inspectionTemplateReviews.definitionHash, template.reviewDefinitionHash),
-          eq(inspectionTemplateReviews.decision, "approved"),
-        ));
-      if (new Set(approvals.map((row) => row.lane)).size !== 2) {
-        throw new AdministrationError("Both operations and governance approvals are required for publication.", 409);
-      }
       const now = new Date();
       await transaction
         .update(inspectionTemplates)
@@ -986,6 +969,8 @@ export async function transitionTemplateWorkflow(templateId: string, rawInput: u
           publishedByUserId: actor.id,
           effectiveFrom: now.toISOString().slice(0, 10),
           ruleSetStatus: "approved",
+          reviewStatus: "approved",
+          reviewDefinitionHash: snapshot.hash,
           rulesApprovedAt: now,
           rulesApprovedByUserId: actor.id,
           recordVersion: template.recordVersion + 1,
@@ -997,7 +982,11 @@ export async function transitionTemplateWorkflow(templateId: string, rawInput: u
         eventType: "inspection_template.published",
         entityType: "inspection_template",
         entityId: templateId,
-        metadata: { reviewRound: template.reviewRound, definitionHash: template.reviewDefinitionHash },
+        metadata: {
+          reviewRound: template.reviewRound,
+          definitionHash: snapshot.hash,
+          publicationPath: template.reviewStatus === "approved" ? "reviewed" : "direct_validated",
+        },
       });
       return { id: templateId, status: "published" as const };
     });
@@ -1245,7 +1234,7 @@ export async function assignInspectionTemplate(vehicleId: string, rawInput: unkn
     db
       .select({ id: inspectionTemplates.id })
       .from(inspectionTemplates)
-      .where(and(eq(inspectionTemplates.id, input.templateId), eq(inspectionTemplates.status, "published"), eq(inspectionTemplates.ruleSetStatus, "approved"), eq(inspectionTemplates.reviewStatus, "approved")))
+      .where(and(eq(inspectionTemplates.id, input.templateId), eq(inspectionTemplates.status, "published")))
       .limit(1),
     db
       .select({ id: vehicleInspectionAssignments.id })
@@ -1260,7 +1249,7 @@ export async function assignInspectionTemplate(vehicleId: string, rawInput: unkn
       .limit(1),
   ]);
   if (!vehicle[0]) throw new AdministrationError("Vehicle not found.", 404);
-  if (!template[0]) throw new AdministrationError("Only a published form with an approved rule set can be assigned.", 409);
+  if (!template[0]) throw new AdministrationError("Only a published form can be assigned.", 409);
   if (duplicate[0]) throw new AdministrationError("This form is already active for the vehicle.", 409);
 
   const [assignment] = await db

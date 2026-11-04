@@ -32,9 +32,9 @@ try {
     .select({ id: vehicleInspectionAssignments.id })
     .from(vehicleInspectionAssignments)
     .innerJoin(inspectionTemplates, eq(vehicleInspectionAssignments.templateId, inspectionTemplates.id))
-    .where(sql`(${vehicleInspectionAssignments.effectiveUntil} is null or ${vehicleInspectionAssignments.effectiveUntil} >= current_date) and ${inspectionTemplates.ruleSetStatus} <> 'approved'`)
+    .where(sql`(${vehicleInspectionAssignments.effectiveUntil} is null or ${vehicleInspectionAssignments.effectiveUntil} >= current_date) and ${inspectionTemplates.status} <> 'published'`)
     .limit(1);
-  if (unsafeAssignment) throw new Error("Every active vehicle form assignment must use an approved rule set.");
+  if (unsafeAssignment) throw new Error("Every active vehicle form assignment must use a published form version.");
   const discovery = integrations.authentication.mode === "oidc" ? await discoverOidc(integrations.authentication) : null;
   const malware = await checkMalwareScanner();
   const smtp = integrations.email.mode === "smtp" ? await createSmtpTransportForConfiguration(integrations.email) : null;

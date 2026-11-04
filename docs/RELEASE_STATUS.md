@@ -6,22 +6,22 @@ Status date: 2026-11-04
 
 The repository is complete as a local Linux production release candidate. Current observed evidence:
 
-- lint, TypeScript, all 44 unit tests, the optimized Next.js standalone build, and 12 Playwright smoke scenarios across desktop/tablet/mobile layouts pass locally;
+- lint, TypeScript, all 44 unit tests, the optimized Next.js standalone build, and 15 Playwright smoke scenarios across desktop/tablet/mobile layouts pass locally;
 - configurable form-family creation, empty-draft rendering, and protected unused-draft deletion passed a local API/database lifecycle check with exact QA cleanup;
 - the production dependency audit reports no known vulnerability;
-- all 21 checksum-locked migrations are represented in the release;
+- all 22 checksum-locked migrations are represented in the release;
 - critical safety-case, report-delivery, vehicle-dossier, notification, and retention QA cycles pass with cleanup;
 - all 15 findings from standard security scan `95a72566-8a1a-430f-9e4b-1170b61dccb3` have focused remediation verification;
 - the native Ubuntu web service runs the supported standalone artifact, and the scheduled worker executes directly under the restricted `pwfleet` account;
 - production configuration validation runs before migrations, and the full preflight runs before the application is made ready;
 - no embedded private key, common provider token, hardcoded credential assignment, or public secret variable was detected.
-- vehicle profiles now expose form assignment directly, and the assignment selector offers only published versions whose safety rules completed approval;
+- vehicle profiles now expose form assignment directly, and every published version is validated and immediately available in the assignment selector;
 - local user administration now supports password creation/reset with session revocation, accurate authentication-state messaging, manager-scoped role protections, and controlled deletion of accounts without operational history.
 - the November dependency security refresh updates Next.js, Nodemailer, Sharp, Zod, Vitest, Vite, source-map-js, brace-expansion, and their lockfile graph so production dependencies have no known `pnpm audit --prod` findings; lint, type generation, all tests, and the standalone production build pass after the refresh. The full development audit retains one transitive `minimatch` advisory in the ESLint toolchain because the affected consumers still require the older API; a global major-version override was rejected after a focused compatibility reproduction demonstrated a real ESLint plugin regression.
 - production keeps Next.js 16.4's experimental shared Turbopack runtime disabled because its bootstrap script is emitted without the request nonce and the enforced CSP correctly blocks it, preventing React hydration. The ordinary Turbopack runtime preserves the strict nonce policy and restores interactive controls without allowing unsafe inline scripts.
 - the Fleet registry actions are operational: **Add vehicle** opens the administrative creation form directly, and **Print QR batch** renders every active fleet label on its own printable page instead of presenting inert controls.
 - vehicle classes are managed from the application, bulk vehicle registration is an atomic CSV workflow, vehicle profiles show QR replacement history, and form-builder sections and fields can be duplicated without hardcoded definitions;
-- the administration control center includes a centralized audit trail and a read-only pilot-readiness dashboard that identifies missing approvals, assignments, role coverage, and deferred integrations without creating or changing users;
+- the administration control center includes a centralized audit trail and a read-only pilot-readiness dashboard that identifies unpublished forms, assignments, role coverage, and deferred integrations without creating or changing users;
 - inspection entry retains an in-session recovery draft, blocks submission when offline, and publishes PWA install/offline metadata without caching protected APIs or authentication routes;
 - native systemd backup and readiness-monitor timers, configurable retention, and a guarded native isolated-restore tool are included in the deployment artifact.
 

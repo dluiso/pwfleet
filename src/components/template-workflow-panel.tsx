@@ -107,16 +107,23 @@ export function TemplateWorkflowPanel({ templateId, template, actor, reviews }: 
     <section className="panel template-workflow-panel" aria-labelledby="template-workflow-heading">
       <header className="template-workflow-header">
         <div>
-          <span className="eyebrow">CONTROLLED FORM LIFECYCLE</span>
-          <h2 id="template-workflow-heading">Review and publication</h2>
+          <span className="eyebrow">FORM AVAILABILITY</span>
+          <h2 id="template-workflow-heading">Publication</h2>
         </div>
         <span className={`workflow-status workflow-status-${displayedStatus}`}>
           {formatEnum(displayedStatus)}
         </span>
       </header>
 
+      {template.status === "draft" && actor.role === "administrator" ? (
+        <div className="workflow-action-box workflow-publish-box">
+          <div><strong>Publish and make assignable</strong><p>The server validates every required section, field, attestation, and defect rule. A successful publication is immediately available for vehicle assignment.</p></div>
+          <button className="button button-primary" disabled={busy} type="button" onClick={() => transition({ action: "publish" }, "The form was published and is now ready for vehicle assignment.")}><FileCheck2 size={16} /> Publish and make assignable</button>
+        </div>
+      ) : null}
+
       {template.status === "draft" ? (
-        <div className="workflow-lanes">
+        <div className="workflow-lanes" aria-label="Optional independent review">
           {(["operations", "governance"] as const).map((lane) => {
             const review = currentReviews.find((entry) => entry.reviewLane === lane);
             return (
@@ -137,8 +144,8 @@ export function TemplateWorkflowPanel({ templateId, template, actor, reviews }: 
 
       {template.status === "draft" && (template.reviewStatus === "draft" || template.reviewStatus === "changes_requested") && actor.role === "administrator" ? (
         <div className="workflow-action-box">
-          <div><strong>Submit the saved definition for independent review</strong><p>Submitting locks this version. Only changes already saved in the builder are included.</p></div>
-          <button className="button button-primary" disabled={busy} type="button" onClick={() => transition({ action: "request_review" }, "Review requested and this draft is now locked.")}><Send size={16} /> Request review</button>
+          <div><strong>Optional independent review</strong><p>Use this only when a separate Operations or Governance sign-off is desired. It is not required to publish or assign a validated form.</p></div>
+          <button className="button button-secondary" disabled={busy} type="button" onClick={() => transition({ action: "request_review" }, "Optional review requested and this draft is now locked.")}><Send size={16} /> Request optional review</button>
         </div>
       ) : null}
 
@@ -146,13 +153,6 @@ export function TemplateWorkflowPanel({ templateId, template, actor, reviews }: 
         <div className="workflow-review-box">
           <label><span>Reviewer comment</span><textarea rows={3} maxLength={1200} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Optional for approval; required when requesting changes." /></label>
           {requestedByActor ? <p className="workflow-guard-note"><ShieldCheck size={16} /> You requested this review round, so another eligible person must record the {actorLane} decision.</p> : currentReviews.some((review) => review.reviewLane === actorLane) ? <p className="workflow-guard-note"><BadgeCheck size={16} /> The {actorLane} lane already recorded its decision for this round.</p> : <div className="workflow-button-row"><button className="button button-secondary" disabled={busy || comment.trim().length < 3} type="button" onClick={() => transition({ action: "review", decision: "request_changes", comment }, "Changes were requested and the draft is unlocked for its author.")}><MessageSquareWarning size={16} /> Request changes</button><button className="button button-primary" disabled={busy} type="button" onClick={() => transition({ action: "review", decision: "approve", comment }, `${laneCopy[actorLane].title} recorded.`)}><UserRoundCheck size={16} /> Approve {actorLane}</button></div>}
-        </div>
-      ) : null}
-
-      {template.status === "draft" && template.reviewStatus === "approved" && actor.role === "administrator" ? (
-        <div className="workflow-action-box workflow-publish-box">
-          <div><strong>Both approval lanes are complete</strong><p>Publication makes this exact version available for vehicle assignment and keeps it immutable.</p></div>
-          <button className="button button-primary" disabled={busy} type="button" onClick={() => transition({ action: "publish" }, "The approved form version was published.")}><FileCheck2 size={16} /> Publish version</button>
         </div>
       ) : null}
 

@@ -92,7 +92,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                   <Link className="button button-secondary button-small" href={`/inspections/new?vehicleId=${vehicle.id}&templateId=${assignment.templateId}`}>Open</Link>
                 </div>
               ))}
-              {!vehicle.assignments.length ? <div className="inline-empty"><span>No inspection form assigned</span><p>Assign an approved published form before this vehicle can be inspected from its QR label.</p></div> : null}
+              {!vehicle.assignments.length ? <div className="inline-empty"><span>No inspection form assigned</span><p>Assign any published form before this vehicle can be inspected from its QR label.</p></div> : null}
             </div>
           </article>
 

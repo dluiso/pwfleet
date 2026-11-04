@@ -35,8 +35,10 @@ test("form catalog exposes lifecycle and assignability", async ({ page }) => {
   await page.goto("/settings/forms");
   await expect(page.getByRole("heading", { name: "Form catalog", level: 1 })).toBeVisible();
   await expect(page.getByRole("region", { name: "Form lifecycle" })).toBeVisible();
+  await expect(page.getByText("Published means ready to assign")).toBeVisible();
   await expect(page.getByRole("link", { name: /Dump Truck Pre-Trip Inspection/ }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Standard Truck Inspection/ }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /published ready to assign/i }).first()).toBeVisible();
 });
 
 test("application publishes install metadata without caching protected APIs", async ({ page, request }) => {
@@ -66,4 +68,6 @@ test("administration exposes readiness, audit, class, and import controls", asyn
   await page.goto("/settings/vehicles");
   await expect(page.getByRole("heading", { name: "Vehicle classes", level: 2 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import CSV" })).toBeVisible();
+  await expect(page.getByText("No published inspection forms")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Assign form" }).first()).toBeEnabled();
 });

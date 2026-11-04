@@ -590,7 +590,7 @@ textarea.field-control { resize: vertical; }
 .form-catalog-row { grid-template-columns: 42px minmax(0, 1fr) auto auto 20px; color: inherit; text-decoration: none; }
 .form-catalog-row:hover { background: #fbfdfc; }
 .form-catalog-arrow { color: var(--subtle); }
-.form-lifecycle-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.form-lifecycle-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
 .form-lifecycle-grid article { padding: 14px 15px; }
 .form-lifecycle-grid strong { display: block; color: var(--green); font-size: 9px; }
 .form-lifecycle-grid span { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }

@@ -18,16 +18,16 @@ Exit evidence: migrations and seed complete, unit tests pass, main routes pass b
 - Completed locally: form-definition and rule review, immutable version history, and transactional cloning of a published form into a complete draft successor.
 - Completed locally: draft-only visual editing of sections, fields, options, exception rules, evidence requirements, notifications, severity, and disposition with atomic saves and optimistic concurrency.
 - Completed locally: conditional field visibility with earlier-field-only references, client/server evaluation parity, and rejection of hidden-field submissions.
-- Completed locally: hash-bound review rounds, independent operations and governance decisions, self-review prevention, controlled publication, review history, and assignment-safe retirement.
+- Completed locally: direct validated publication, optional hash-bound Operations and Governance review rounds, review history, and assignment-safe retirement.
 - Completed locally: provider-neutral OIDC Authorization Code + PKCE, signed provider-token verification, encrypted sessions, secure cookies, logout, identity binding/revocation, and authentication audit events. Real-provider acceptance remains external.
 - Completed locally: vehicle asset dossier, controlled images/documents, expiration alerts, operational/maintenance history, administrator-managed vehicle classes, and atomic CSV fleet import with automatic QR issuance.
 - Completed locally: QR replacement remains audited, preserves historical labels, and is shown as a visual lifecycle timeline on the vehicle profile.
 - Completed locally: form-builder section and field duplication, centralized audit review, and a live pilot-readiness dashboard.
-- Complete multi-user acceptance testing for the dual-control workflow after OIDC identities and group mappings are available.
+- Complete multi-user acceptance testing for the optional independent-review workflow after OIDC identities and group mappings are available.
 
-Design constraint: a published template is immutable. Any form or rule change creates a draft successor version, and vehicle assignments remain pinned until that version is reviewed and published.
+Design constraint: a published template is immutable and always assignable. Publishing performs the structural and safety-rule validation in one step. Any later form or rule change creates a draft successor version, and vehicle assignments remain pinned until that successor is published.
 
-Administrators can also create an independent form family from an empty draft. Drafts may be saved while incomplete; review readiness requires at least one section, one field, a required attestation, and explicit defect handling for each Pass/Defect/N/A field. Only unused drafts may be deleted. Published versions are retired rather than deleted.
+Administrators can also create an independent form family from an empty draft. Drafts may be saved while incomplete; publication requires at least one section, one field, a required attestation, and explicit defect handling for each Pass/Defect/N/A field. Optional independent review may be requested when desired, but it does not block direct validated publication. Only unused drafts may be deleted. Published versions are retired rather than deleted.
 
 Exit evidence: OIDC and RBAC acceptance tests pass; development bypass is absent from production; authorized PW representatives approve every release rule and recipient group.
 

@@ -57,15 +57,15 @@ export default async function FormVersionPage({ params }: { params: Promise<{ id
       <section className="form-version-hero">
         <span className="record-icon"><FileCog size={20} /></span>
         <div><span className="eyebrow">{template.code}</span><h1>{template.name}</h1><p>Version {template.version} · {formatEnum(template.status)} · {items.length} fields</p></div>
-        <span className={`severity-chip ${template.ruleSetStatus === "approved" ? "severity-minor" : "severity-critical"}`}>{formatEnum(template.ruleSetStatus)} rules</span>
+        <span className={`severity-chip ${template.status === "published" ? "severity-minor" : "severity-critical"}`}>{template.status === "published" ? "Ready to assign" : "Draft"}</span>
         {template.status === "published" && !existingDraft && actor.role === "administrator" ? <CreateTemplateVersionButton templateId={template.id} /> : null}
         {template.status === "published" && existingDraft ? <Link className="button button-secondary" href={`/settings/forms/${existingDraft.id}`}><CopyPlus size={17} /> Open draft v{existingDraft.version}</Link> : null}
       </section>
       <article className="safety-callout safety-callout-wide">
-        {template.status === "draft" || template.ruleSetStatus !== "approved" ? <ShieldAlert size={22} /> : <CheckCircle2 size={22} />}
+        {template.status === "draft" ? <ShieldAlert size={22} /> : <CheckCircle2 size={22} />}
         <div>
-          <strong>{template.status === "draft" ? "Safe draft workspace" : template.ruleSetStatus !== "approved" ? "Published definition with unapproved rules" : "Immutable published version ready for assignment"}</strong>
-          <p>{template.status === "draft" ? "Only this draft can be edited. Saving returns its rules to Draft status; it remains unavailable for vehicle assignment until a separate review and publication workflow is completed." : template.ruleSetStatus !== "approved" ? "This legacy version cannot be assigned. Create its successor draft, submit it for independent Operations and Governance review, and publish the approved version." : "Create a successor draft to make changes. Existing inspections and assignments remain pinned to this exact version."}</p>
+          <strong>{template.status === "draft" ? "Draft workspace" : "Published and ready for assignment"}</strong>
+          <p>{template.status === "draft" ? "Edit and save this draft, then use Publish and make assignable. Publication performs the required structural and safety-rule validation in one step." : "Every published version can be assigned immediately. Create a successor draft only when the form itself needs to change."}</p>
         </div>
       </article>
       {!draftDefinition ? <TemplateWorkflowPanel templateId={template.id} template={{ status: template.status, reviewStatus: template.reviewStatus, reviewRound: template.reviewRound, reviewRequestedByUserId: template.reviewRequestedByUserId }} actor={actor} reviews={reviews} /> : null}
